@@ -1,0 +1,412 @@
+import express from "express";
+import path from "path";
+import dotenv from "dotenv";
+import { GoogleGenAI, Type } from "@google/genai";
+import { createServer as createViteServer } from "vite";
+
+// Load environment variables
+dotenv.config();
+
+const app = express();
+const PORT = 3000;
+
+// Parse JSON request bodies up to 50MB (to allow audio base64 payload uploads)
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+let aiClient: GoogleGenAI | null = null;
+
+function getGeminiClient(): GoogleGenAI {
+  if (!aiClient) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error("GEMINI_API_KEY is missing. Please add it to your secrets panel in Settings.");
+    }
+    aiClient = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          "User-Agent": "aistudio-build",
+        },
+      },
+    });
+  }
+  return aiClient;
+}
+
+// Health check route
+app.get("/api/health", (req, res) => {
+  res.json({ status: "healthy", time: new Date().toISOString() });
+});
+
+import fs from "fs";
+
+// Simple local JSON database setup
+const DB_DIR = path.join(process.cwd(), "data");
+const DB_FILE = path.join(DB_DIR, "db.json");
+
+function initDb() {
+  if (!fs.existsSync(DB_DIR)) {
+    fs.mkdirSync(DB_DIR, { recursive: true });
+  }
+  if (!fs.existsSync(DB_FILE)) {
+    fs.writeFileSync(DB_FILE, JSON.stringify({ users: [], documents: [] }, null, 2), "utf8");
+  }
+}
+
+function getDb() {
+  initDb();
+  try {
+    const raw = fs.readFileSync(DB_FILE, "utf8");
+    return JSON.parse(raw);
+  } catch (err) {
+    return { users: [], documents: [] };
+  }
+}
+
+function saveDb(data: any) {
+  initDb();
+  fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), "utf8");
+}
+
+// Middleware to authenticate via Bearer token (which is the user's ID)
+function authenticateUser(req: any, res: any, next: any) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Access denied. Sign-in required." });
+  }
+  const token = authHeader.split(" ")[1];
+  const db = getDb();
+  const user = db.users.find((u: any) => u.id === token);
+  if (!user) {
+    return res.status(401).json({ error: "Invalid session token. Please sign in again." });
+  }
+  req.user = user;
+  next();
+}
+
+// Authentication - Register
+app.post("/api/auth/register", (req, res) => {
+  try {
+    const { email, name, password, address } = req.body;
+    if (!email || !password || !name) {
+      return res.status(400).json({ error: "Email, password, and name are required." });
+    }
+
+    const db = getDb();
+    const existing = db.users.find((u: any) => u.email.toLowerCase() === email.toLowerCase());
+    if (existing) {
+      return res.status(400).json({ error: "Email is already registered. Please sign in." });
+    }
+
+    const newUser = {
+      id: "u_" + Math.random().toString(36).substr(2, 9),
+      email: email.toLowerCase(),
+      name,
+      password, // Plain-text for simpler educational local database
+      address: address || "No address provided",
+      created_at: new Date().toISOString()
+    };
+
+    db.users.push(newUser);
+    saveDb(db);
+
+    const { password: _, ...userWithoutPassword } = newUser;
+    res.json({ user: userWithoutPassword, token: newUser.id });
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to register user." });
+  }
+});
+
+// Authentication - Login
+app.post("/api/auth/login", (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password are required." });
+    }
+
+    const db = getDb();
+    const user = db.users.find(
+      (u: any) => u.email.toLowerCase() === email.toLowerCase() && u.password === password
+    );
+
+    if (!user) {
+      return res.status(400).json({ error: "Invalid email or password." });
+    }
+
+    const { password: _, ...userWithoutPassword } = user;
+    res.json({ user: userWithoutPassword, token: user.id });
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to sign in." });
+  }
+});
+
+// User Profile - Get current
+app.get("/api/profile", authenticateUser, (req: any, res) => {
+  const { password, ...userWithoutPassword } = req.user;
+  res.json(userWithoutPassword);
+});
+
+// User Profile - Update profile
+app.put("/api/profile", authenticateUser, (req: any, res) => {
+  try {
+    const { name, address, phone } = req.body;
+    const db = getDb();
+    const userIndex = db.users.findIndex((u: any) => u.id === req.user.id);
+
+    if (userIndex === -1) {
+      return res.status(404).json({ error: "User profile not found." });
+    }
+
+    db.users[userIndex].name = name || db.users[userIndex].name;
+    db.users[userIndex].address = address || db.users[userIndex].address;
+    db.users[userIndex].phone = phone !== undefined ? phone : db.users[userIndex].phone;
+
+    saveDb(db);
+
+    const { password: _, ...updatedUser } = db.users[userIndex];
+    res.json(updatedUser);
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to update profile." });
+  }
+});
+
+// User Documents - Get all saved for current user
+app.get("/api/documents", authenticateUser, (req: any, res) => {
+  try {
+    const db = getDb();
+    const userDocs = db.documents.filter((d: any) => d.userId === req.user.id);
+    res.json(userDocs);
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to fetch saved documents." });
+  }
+});
+
+// User Documents - Save new document
+app.post("/api/documents", authenticateUser, (req: any, res) => {
+  try {
+    const { title, category, opponentName, result, letterContent } = req.body;
+    if (!title || !category || !result) {
+      return res.status(400).json({ error: "Title, category, and analysis results are required." });
+    }
+
+    const db = getDb();
+    const newDoc = {
+      id: "doc_" + Math.random().toString(36).substr(2, 9),
+      userId: req.user.id,
+      timestamp: new Date().toISOString(),
+      title,
+      category,
+      opponentName: opponentName || "Opponent",
+      result,
+      letterContent
+    };
+
+    db.documents.push(newDoc);
+    saveDb(db);
+
+    res.json(newDoc);
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to save document." });
+  }
+});
+
+// User Documents - Delete
+app.delete("/api/documents/:id", authenticateUser, (req: any, res) => {
+  try {
+    const { id } = req.params;
+    const db = getDb();
+    const docIndex = db.documents.findIndex((d: any) => d.id === id && d.userId === req.user.id);
+
+    if (docIndex === -1) {
+      return res.status(404).json({ error: "Document not found or access denied." });
+    }
+
+    db.documents.splice(docIndex, 1);
+    saveDb(db);
+
+    res.json({ success: true, message: "Document deleted successfully." });
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to delete document." });
+  }
+});
+
+// API endpoint to analyze audio or text conversations for legal rights
+app.post("/api/analyze", async (req, res) => {
+  try {
+    const { text, audio, category } = req.body;
+
+    if (!text && !audio) {
+      res.status(400).json({ error: "Please provide either conversation text or recorded audio." });
+      return;
+    }
+
+    const ai = getGeminiClient();
+
+    let contents: any[] = [];
+    let promptText = "";
+
+    if (audio && audio.data && audio.mimeType) {
+      // Gemini natively accepts audio files for multimodal reasoning and transcription!
+      contents.push({
+        inlineData: {
+          mimeType: audio.mimeType,
+          data: audio.data,
+        },
+      });
+      promptText = `Transcribe this recorded verbal conversation and perform a thorough rights advocacy analysis. `;
+    } else {
+      promptText = `Analyze the following copy-pasted conversation transcript for potential rights violations and shady demands:
+---
+${text}
+---
+`;
+    }
+
+    // Append standard context and instructions
+    promptText += `
+Context Category (optional instruction, prioritize finding rights issues in this field): ${category || "General / Miscellaneous"}
+
+Analyze this interaction carefully. Your task is to:
+1. Provide a clean transcription or recreation of the verbal conversation.
+2. Determine if any demands, statements, or terms are shady, pressure tactics, deceptive, or potentially violate standard civilian/consumer/tenant/employee rights.
+3. Identify standard regulations or legal concepts (like tenant rights, Fair Labor Standards Act for employees, bad faith tactics for insurance, standard service warranties, etc.) that the user should be aware of.
+4. Draft three guidance response options the user can say or write:
+   - "firm": Assertive, direct, and sets strong, unyielding boundaries.
+   - "legal": Professional and references standard rights, laws, or guidelines that demand compliance.
+   - "polite": Softened, cooperative but protective, to keep things civil while not yielding any rights.
+5. Provide a summary of the situation, along with a helpful disclaimer that this is educational guidance, not official legal counsel.
+
+Ensure you respond in valid JSON format matching the requested schema. Do not include markdown wraps around the JSON inside the response (or if you do, ensure it parses as standard JSON).`;
+
+    contents.push({ text: promptText });
+
+    const systemInstruction = `You are AI Pocket Advocate, an expert legal rights guide. You help everyday tenants, employees, insurance policyholders, and customers level the playing field against landlords, bosses, or agents during negotiations. Identify pressure tactics, shady clauses, or rights violations, and provide reply templates (firm, legal, and polite). Always include a supportive, protective vibe and a brief educational disclaimer.`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents,
+      config: {
+        systemInstruction,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            transcript: {
+              type: Type.STRING,
+              description: "Transcribed text from the audio, or the processed/polished version of the input text if text was provided.",
+            },
+            negotiationType: {
+              type: Type.STRING,
+              description: "One of: landlord, employer, insurance, or general.",
+            },
+            riskLevel: {
+              type: Type.STRING,
+              description: "One of: low, medium, or high, depending on how shady or severe the violations are.",
+            },
+            summary: {
+              type: Type.STRING,
+              description: "A summary of what happened, highlighting major concerns and a brief friendly disclaimer that this is educational guidance, not official legal counsel.",
+            },
+            violations: {
+              type: Type.ARRAY,
+              description: "List of detected shady statements, pressure tactics, or potential rights violations.",
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  term: {
+                    type: Type.STRING,
+                    description: "The specific shady phrase, demand, or argument used by the opposing party.",
+                  },
+                  explanation: {
+                    type: Type.STRING,
+                    description: "Why this demand is suspicious, unfair, or potentially illegal.",
+                  },
+                  legalReference: {
+                    type: Type.STRING,
+                    description: "General legal principle, standard tenant/employee/consumer protection laws, or acts (e.g. security deposit timelines, overtime laws, bad faith claims) to reference.",
+                  }
+                },
+                required: ["term", "explanation", "legalReference"]
+              }
+            },
+            replies: {
+              type: Type.OBJECT,
+              properties: {
+                firm: {
+                  type: Type.OBJECT,
+                  properties: {
+                    text: { type: Type.STRING, description: "Assertive, clear, and direct reply that sets boundaries immediately." },
+                    rationale: { type: Type.STRING, description: "Why/when to use this assertive reply." }
+                  },
+                  required: ["text", "rationale"]
+                },
+                legal: {
+                  type: Type.OBJECT,
+                  properties: {
+                    text: { type: Type.STRING, description: "A highly informed reply that professionally references standard legal protections or rights." },
+                    rationale: { type: Type.STRING, description: "When to use this legal reference reply (e.g., if they push back or persist)." }
+                  },
+                  required: ["text", "rationale"]
+                },
+                polite: {
+                  type: Type.OBJECT,
+                  properties: {
+                    text: { type: Type.STRING, description: "A collaborative, cooperative, yet protective reply to de-escalate tension." },
+                    rationale: { type: Type.STRING, description: "When to use this de-escalation reply." }
+                  },
+                  required: ["text", "rationale"]
+                }
+              },
+              required: ["firm", "legal", "polite"]
+            }
+          },
+          required: ["transcript", "negotiationType", "riskLevel", "summary", "violations", "replies"]
+        },
+      },
+    });
+
+    const responseText = response.text;
+    if (!responseText) {
+      throw new Error("No response generated from Gemini.");
+    }
+
+    const data = JSON.parse(responseText.trim());
+    res.json(data);
+  } catch (error: any) {
+    console.error("Analysis error:", error);
+    res.status(500).json({
+      error: error.message || "Failed to analyze conversation. Please make sure your Gemini API key is configured correctly."
+    });
+  }
+});
+
+async function main() {
+  if (process.env.NODE_ENV !== "production") {
+    // Vite dev server middleware integration
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
+    });
+    app.use(vite.middlewares);
+    console.log("Vite development middleware loaded.");
+  } else {
+    // In production, serve the built static front-end assets
+    const distPath = path.join(process.cwd(), "dist");
+    app.use(express.static(distPath));
+    app.get("*", (req, res) => {
+      res.sendFile(path.join(distPath, "index.html"));
+    });
+    console.log("Production static files server configured.");
+  }
+
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`AI Pocket Advocate server running on port ${PORT}`);
+  });
+}
+
+main().catch((err) => {
+  console.error("Server startup error:", err);
+  process.exit(1);
+});

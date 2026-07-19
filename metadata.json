@@ -1,0 +1,6 @@
+{
+  "name": "AI Pocket Advocate",
+  "description": "An advocate in your pocket: record or type verbal negotiations with landlords, employers, or insurance agents to detect rights violations and get firm, legal, or polite reply guidance in real-time.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
