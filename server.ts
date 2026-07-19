@@ -105,7 +105,9 @@ app.post("/api/auth/register", (req, res) => {
       name,
       password, // Plain-text for simpler educational local database
       address: address || "No address provided",
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
+      isPremium: false,
+      plan: "Free Starter"
     };
 
     db.users.push(newUser);
@@ -135,6 +137,13 @@ app.post("/api/auth/login", (req, res) => {
       return res.status(400).json({ error: "Invalid email or password." });
     }
 
+    // Backwards compatibility for pre-existing users without isPremium/plan
+    if (user.isPremium === undefined) {
+      user.isPremium = false;
+      user.plan = "Free Starter";
+      saveDb(db);
+    }
+
     const { password: _, ...userWithoutPassword } = user;
     res.json({ user: userWithoutPassword, token: user.id });
   } catch (error: any) {
@@ -144,8 +153,50 @@ app.post("/api/auth/login", (req, res) => {
 
 // User Profile - Get current
 app.get("/api/profile", authenticateUser, (req: any, res) => {
-  const { password, ...userWithoutPassword } = req.user;
+  const db = getDb();
+  const user = db.users.find((u: any) => u.id === req.user.id);
+  if (user && user.isPremium === undefined) {
+    user.isPremium = false;
+    user.plan = "Free Starter";
+    saveDb(db);
+  }
+  const { password, ...userWithoutPassword } = user || req.user;
   res.json(userWithoutPassword);
+});
+
+// User Profile - Upgrade / Change subscription tier (Payment simulation)
+app.post("/api/profile/upgrade", authenticateUser, async (req: any, res) => {
+  try {
+    const { plan, paymentDetails } = req.body;
+    const db = getDb();
+    const userIndex = db.users.findIndex((u: any) => u.id === req.user.id);
+
+    if (userIndex === -1) {
+      return res.status(404).json({ error: "User profile not found." });
+    }
+
+    // Simulate payment verification delay
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    if (plan === "Free Starter" || !plan) {
+      db.users[userIndex].isPremium = false;
+      db.users[userIndex].plan = "Free Starter";
+    } else {
+      db.users[userIndex].isPremium = true;
+      db.users[userIndex].plan = plan; // e.g., "Premium Pro" or "Enterprise Advocate"
+    }
+
+    saveDb(db);
+
+    const { password: _, ...updatedUser } = db.users[userIndex];
+    res.json({
+      success: true,
+      message: `Successfully updated plan to ${plan}`,
+      user: updatedUser
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to upgrade subscription tier." });
+  }
 });
 
 // User Profile - Update profile
@@ -235,7 +286,7 @@ app.delete("/api/documents/:id", authenticateUser, (req: any, res) => {
 // API endpoint to analyze audio or text conversations for legal rights
 app.post("/api/analyze", async (req, res) => {
   try {
-    const { text, audio, category } = req.body;
+    const { text, audio, category, language } = req.body;
 
     if (!text && !audio) {
       res.status(400).json({ error: "Please provide either conversation text or recorded audio." });
@@ -264,6 +315,14 @@ ${text}
 `;
     }
 
+    const languageNames: Record<string, string> = {
+      en: "English",
+      es: "Spanish (Español)",
+      zh: "Chinese (中文)",
+      vi: "Vietnamese (Tiếng Việt)"
+    };
+    const targetLanguage = languageNames[language] || "English";
+
     // Append standard context and instructions
     promptText += `
 Context Category (optional instruction, prioritize finding rights issues in this field): ${category || "General / Miscellaneous"}
@@ -278,11 +337,20 @@ Analyze this interaction carefully. Your task is to:
    - "polite": Softened, cooperative but protective, to keep things civil while not yielding any rights.
 5. Provide a summary of the situation, along with a helpful disclaimer that this is educational guidance, not official legal counsel.
 
+CRITICAL LANGUAGE REQUIREMENT:
+The user's preferred language is ${targetLanguage}.
+All user-facing fields in the generated JSON MUST be fully translated and written in ${targetLanguage}.
+This includes:
+- 'summary' (written in ${targetLanguage})
+- 'violations' (all properties 'term', 'explanation', 'legalReference' must be in ${targetLanguage})
+- 'replies' (both 'text' and 'rationale' for 'firm', 'legal', and 'polite' must be fully translated into ${targetLanguage})
+The 'transcript' field should be represented in ${targetLanguage} if translated, or if the original input was in another language, translate it to ${targetLanguage} so the user can easily read it.
+
 Ensure you respond in valid JSON format matching the requested schema. Do not include markdown wraps around the JSON inside the response (or if you do, ensure it parses as standard JSON).`;
 
     contents.push({ text: promptText });
 
-    const systemInstruction = `You are AI Pocket Advocate, an expert legal rights guide. You help everyday tenants, employees, insurance policyholders, and customers level the playing field against landlords, bosses, or agents during negotiations. Identify pressure tactics, shady clauses, or rights violations, and provide reply templates (firm, legal, and polite). Always include a supportive, protective vibe and a brief educational disclaimer.`;
+    const systemInstruction = `You are AI Pocket Advocate, an expert legal rights guide. You help everyday tenants, employees, insurance policyholders, and customers level the playing field against landlords, bosses, or agents during negotiations. Identify pressure tactics, shady clauses, or rights violations, and provide reply templates (firm, legal, and polite). Always include a supportive, protective vibe and a brief educational disclaimer. You MUST output all response text in ${targetLanguage} when requested.`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3.5-flash",
@@ -379,6 +447,54 @@ Ensure you respond in valid JSON format matching the requested schema. Do not in
     res.status(500).json({
       error: error.message || "Failed to analyze conversation. Please make sure your Gemini API key is configured correctly."
     });
+  }
+});
+
+// AI-Powered Legal FAQ Chatbot Endpoint
+app.post("/api/faq-chat", async (req, res) => {
+  try {
+    const { question, category, language } = req.body;
+    if (!question) {
+      return res.status(400).json({ error: "Please enter a question." });
+    }
+
+    const ai = getGeminiClient();
+    const resolvedCategory = category || "general";
+
+    const languageNames: Record<string, string> = {
+      en: "English",
+      es: "Spanish (Español)",
+      zh: "Chinese (中文)",
+      vi: "Vietnamese (Tiếng Việt)"
+    };
+    const targetLanguage = languageNames[language] || "English";
+
+    const systemPrompt = `You are the AI Pocket Advocate General Legal Rights Educator. Your job is to answer user questions about ${resolvedCategory} rights in a structured, clear, and highly educational manner. 
+Always divide your response into three clear sections:
+1. "The Simple Answer": 1-2 sentences summarizing the rule.
+2. "Under the Law": Explaining the exact statutory principles (e.g. 21-day or 30-day deadlines for deposits, FLSA requirements for overtime, or policyholder timelines for claims).
+3. "De-escalation Advice": Actions they can take to raise this directly and professionally with their opponent.
+
+CRITICAL LANGUAGE REQUIREMENT:
+The user's preferred language is ${targetLanguage}. You MUST write the ENTIRE response (all three sections, plus the educational disclaimer) in ${targetLanguage}. Do not write in English unless English is the selected language.
+
+Remember: Include a standard educational disclaimer that this is for educational purposes and not a substitute for formal attorney counsel. Keep answers concise, direct, and empathetic. Do not use markdown headers that are too deep.`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: [
+        { role: "user", parts: [{ text: `Category: ${resolvedCategory}\nQuestion: ${question}` }] }
+      ],
+      config: {
+        systemInstruction: systemPrompt,
+        temperature: 0.2
+      }
+    });
+
+    const answer = response.text || "No response received from AI model.";
+    res.json({ answer });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Failed to generate AI response." });
   }
 });
 

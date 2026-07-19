@@ -50,6 +50,8 @@ export interface UserProfile {
   address: string;
   phone?: string;
   created_at: string;
+  isPremium?: boolean;
+  plan?: string;
 }
 
 export interface UserSavedDocument {

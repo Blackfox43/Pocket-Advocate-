@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Replies, UserProfile } from "../types";
-import { FileText, Copy, Check, Download, Edit3, Save, Bookmark } from "lucide-react";
+import { FileText, Copy, Check, Download, Edit3, Save, Bookmark, Printer } from "lucide-react";
 
 interface DisputeLetterBuilderProps {
   category: "landlord" | "employer" | "insurance" | "general";
@@ -9,6 +9,7 @@ interface DisputeLetterBuilderProps {
   tone: string;
   currentUser?: UserProfile | null;
   onSaveLetter?: (letterText: string) => void;
+  onPreviewLetter?: (letterText: string) => void;
 }
 
 export default function DisputeLetterBuilder({
@@ -18,6 +19,7 @@ export default function DisputeLetterBuilder({
   tone,
   currentUser,
   onSaveLetter,
+  onPreviewLetter,
 }: DisputeLetterBuilderProps) {
   const [userName, setUserName] = useState("Emma Watson");
   const [userAddress, setUserAddress] = useState("123 Main Street, Apt 4B");
@@ -125,7 +127,17 @@ export default function DisputeLetterBuilder({
 
       {/* Document Letter Preview Stage */}
       <div className="relative bg-slate-950 border border-slate-800/60 rounded-xl p-5 font-mono text-xs text-slate-300 h-64 overflow-y-auto whitespace-pre-wrap leading-relaxed shadow-inner">
-        <div className="absolute top-3 right-3 flex items-center gap-2">
+        <div className="absolute top-3 right-3 flex items-center gap-2 flex-wrap justify-end max-w-[80%]">
+          {onPreviewLetter && (
+            <button
+              onClick={() => onPreviewLetter(generateLetterContent())}
+              className="flex items-center gap-1.5 bg-emerald-600/10 border border-emerald-500/20 hover:bg-emerald-600 hover:text-white px-2.5 py-1 rounded text-[10px] text-emerald-400 font-semibold transition cursor-pointer"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              Print / Export HTML
+            </button>
+          )}
+
           {onSaveLetter && (
             <button
               onClick={() => onSaveLetter(generateLetterContent())}
@@ -138,7 +150,7 @@ export default function DisputeLetterBuilder({
 
           <button
             onClick={handleCopy}
-            className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 hover:border-slate-700 hover:text-white px-2.5 py-1 rounded text-[10px] text-slate-400 transition"
+            className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 hover:border-slate-700 hover:text-white px-2.5 py-1 rounded text-[10px] text-slate-400 transition cursor-pointer"
           >
             {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
             {copied ? "Copied" : "Copy Formatted"}
@@ -146,7 +158,7 @@ export default function DisputeLetterBuilder({
           
           <button
             onClick={handleDownload}
-            className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 hover:border-slate-700 hover:text-white px-2.5 py-1 rounded text-[10px] text-slate-400 transition"
+            className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 hover:border-slate-700 hover:text-white px-2.5 py-1 rounded text-[10px] text-slate-400 transition cursor-pointer"
           >
             <Download className="w-3.5 h-3.5 text-indigo-400" />
             Download TXT

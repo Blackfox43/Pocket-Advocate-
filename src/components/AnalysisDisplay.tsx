@@ -17,6 +17,7 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import DisputeLetterBuilder from "./DisputeLetterBuilder";
 import RehearsalCoach from "./RehearsalCoach";
+import { Language, translations } from "../lib/translations";
 
 const GLOSSARY_DICTIONARY: Record<string, string> = {
   "security deposit": "A refundable sum of money paid to a landlord before moving in to cover potential damages beyond normal wear and tear.",
@@ -75,11 +76,21 @@ interface AnalysisDisplayProps {
   opponentName: string;
   currentUser?: UserProfile | null;
   onSaveLetter?: (letterText: string) => void;
+  onPreviewLetter?: (letterText: string) => void;
+  language?: Language;
 }
 
 type ToneTab = "firm" | "legal" | "polite";
 
-export default function AnalysisDisplay({ result, opponentName, currentUser, onSaveLetter }: AnalysisDisplayProps) {
+export default function AnalysisDisplay({ 
+  result, 
+  opponentName, 
+  currentUser, 
+  onSaveLetter,
+  onPreviewLetter,
+  language = "en"
+}: AnalysisDisplayProps) {
+  const t = translations[language];
   const [activeTab, setActiveTab] = useState<ToneTab>("firm");
   const [copied, setCopied] = useState(false);
   const [expandedViolations, setExpandedViolations] = useState<Record<number, boolean>>({});
@@ -198,21 +209,21 @@ export default function AnalysisDisplay({ result, opponentName, currentUser, onS
           bg: "bg-red-500/10 border-red-500/20",
           text: "text-red-400",
           badge: "bg-red-500 text-slate-950",
-          label: "HIGH EXPLOITATION RISK"
+          label: `${t.riskLevel}: ${t.riskHigh}`
         };
       case "medium":
         return {
           bg: "bg-amber-500/10 border-amber-500/20",
           text: "text-amber-400",
           badge: "bg-amber-500 text-slate-950",
-          label: "MODERATE RISK"
+          label: `${t.riskLevel}: ${t.riskMedium}`
         };
       default:
         return {
           bg: "bg-emerald-500/10 border-emerald-500/20",
           text: "text-emerald-400",
           badge: "bg-emerald-500 text-slate-950",
-          label: "LOW / STANDARD RISK"
+          label: `${t.riskLevel}: ${t.riskLow}`
         };
     }
   };
@@ -249,12 +260,12 @@ export default function AnalysisDisplay({ result, opponentName, currentUser, onS
       <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/40 backdrop-blur-sm">
         <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
           <FileWarning className="w-4.5 h-4.5 text-amber-500" />
-          Flagged Demands & Rights Context
+          {t.violationsTitle}
         </h3>
 
         {result.violations.length === 0 ? (
           <div className="p-4 rounded-xl border border-slate-800/80 bg-slate-950/40 text-center text-xs text-slate-400">
-            No severe rights violations or predatory terms detected. The verbal request appears standard.
+            {t.violationsEmpty}
           </div>
         ) : (
           <div className="space-y-3">
@@ -338,10 +349,13 @@ export default function AnalysisDisplay({ result, opponentName, currentUser, onS
           <div>
             <h3 className="text-sm font-semibold text-white flex items-center gap-1.5">
               <Gavel className="w-4.5 h-4.5 text-indigo-400" />
-              Whisper Reply Options
+              {t.responseArmorTitle}
             </h3>
             <p className="text-xs text-slate-400">
-              Select a tone based on your verbal negotiation style.
+              {language === "en" ? "Select a tone based on your verbal negotiation style." : 
+               language === "es" ? "Seleccione un tono según su estilo de negociación." :
+               language === "zh" ? "根据您的沟通风格选择话术语气。" :
+               "Chọn một tông giọng phù hợp với phong cách đàm phán của bạn."}
             </p>
           </div>
 
@@ -357,7 +371,9 @@ export default function AnalysisDisplay({ result, opponentName, currentUser, onS
                     : "text-slate-400 hover:text-white"
                 }`}
               >
-                {tone}
+                {tone === "firm" ? (language === "en" ? "Firm" : language === "es" ? "Firme" : language === "zh" ? "强硬" : "Cứng Rắn") :
+                 tone === "legal" ? (language === "en" ? "Legal" : language === "es" ? "Legal" : language === "zh" ? "法律" : "Pháp Lý") :
+                 (language === "en" ? "Polite" : language === "es" ? "Cortés" : language === "zh" ? "礼貌" : "Lịch Sự")}
               </button>
             ))}
           </div>
@@ -370,7 +386,10 @@ export default function AnalysisDisplay({ result, opponentName, currentUser, onS
               {activeTab === "firm" && <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />}
               {activeTab === "legal" && <Scale className="w-3.5 h-3.5 text-indigo-400" />}
               {activeTab === "polite" && <HeartHandshake className="w-3.5 h-3.5 text-emerald-400" />}
-              ACTIVE ADVOCATE PREVIEW ({activeTab.toUpperCase()})
+              {language === "en" ? `ACTIVE ADVOCATE PREVIEW (${activeTab.toUpperCase()})` :
+               language === "es" ? `PREVIZUALIZACIÓN DE DEFENSA ACTIVA (${activeTab.toUpperCase()})` :
+               language === "zh" ? `口袋法律卫士话术预览 (${activeTab.toUpperCase()})` :
+               `XEM TRƯỚC PHƯƠNG ÁN ĐỐI PHÓ (${activeTab.toUpperCase()})`}
             </span>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -404,12 +423,12 @@ export default function AnalysisDisplay({ result, opponentName, currentUser, onS
                     {isSpeaking ? (
                       <>
                         <VolumeX className="w-3.5 h-3.5 text-red-400 animate-pulse" />
-                        <span>Stop</span>
+                        <span>{t.stopText}</span>
                       </>
                     ) : (
                       <>
                         <Volume2 className="w-3.5 h-3.5 text-indigo-400" />
-                        <span>Speak</span>
+                        <span>{t.speakText}</span>
                       </>
                     )}
                   </button>
@@ -423,12 +442,12 @@ export default function AnalysisDisplay({ result, opponentName, currentUser, onS
                 {copied ? (
                   <>
                     <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Copied!</span>
+                    <span>{t.copiedText}</span>
                   </>
                 ) : (
                   <>
                     <Copy className="w-3.5 h-3.5" />
-                    <span>Copy Reply</span>
+                    <span>{t.copyText}</span>
                   </>
                 )}
               </button>
@@ -441,7 +460,7 @@ export default function AnalysisDisplay({ result, opponentName, currentUser, onS
 
           <div className="text-xs">
             <span className="font-mono text-[10px] text-slate-400 block mb-1">
-              EXPERT STRATEGY & RATIONALE
+              {t.rationaleLabel.toUpperCase()}
             </span>
             <p className="text-slate-300 leading-relaxed">
               {renderTextWithGlossary(activeReply.rationale)}
@@ -484,6 +503,7 @@ export default function AnalysisDisplay({ result, opponentName, currentUser, onS
         tone={activeTab}
         currentUser={currentUser}
         onSaveLetter={onSaveLetter}
+        onPreviewLetter={onPreviewLetter}
       />
     </div>
   );
