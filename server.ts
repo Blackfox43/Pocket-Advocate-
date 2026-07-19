@@ -1,14 +1,25 @@
 import express from "express";
 import path from "path";
 import dotenv from "dotenv";
+import cors from "cors"; // 1. Added CORS import
 import { GoogleGenAI, Type } from "@google/genai";
-import { createServer as createViteServer } from "vite";
+import fs from "fs";
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+
+// 2. Dynamic Port Selection for Render
+const PORT = process.env.PORT || 3000; 
+
+// 3. Enable CORS Configuration
+// In production, change origin to your specific Vercel URL: "https://your-frontend.vercel.app"
+app.use(cors({
+  origin: "*", 
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
 
 // Parse JSON request bodies up to 50MB (to allow audio base64 payload uploads)
 app.use(express.json({ limit: "50mb" }));
@@ -39,9 +50,8 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "healthy", time: new Date().toISOString() });
 });
 
-import fs from "fs";
-
-// Simple local JSON database setup
+// NOTE: Disk storage warning on Render Free Web Services
+// A persistent database solution (PostgreSQL/Supabase) is strongly recommended for final rollout.
 const DB_DIR = path.join(process.cwd(), "data");
 const DB_FILE = path.join(DB_DIR, "db.json");
 
@@ -69,7 +79,7 @@ function saveDb(data: any) {
   fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), "utf8");
 }
 
-// Middleware to authenticate via Bearer token (which is the user's ID)
+// Middleware to authenticate via Bearer token
 function authenticateUser(req: any, res: any, next: any) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -103,7 +113,7 @@ app.post("/api/auth/register", (req, res) => {
       id: "u_" + Math.random().toString(36).substr(2, 9),
       email: email.toLowerCase(),
       name,
-      password, // Plain-text for simpler educational local database
+      password, 
       address: address || "No address provided",
       created_at: new Date().toISOString(),
       isPremium: false,
@@ -137,7 +147,6 @@ app.post("/api/auth/login", (req, res) => {
       return res.status(400).json({ error: "Invalid email or password." });
     }
 
-    // Backwards compatibility for pre-existing users without isPremium/plan
     if (user.isPremium === undefined) {
       user.isPremium = false;
       user.plan = "Free Starter";
@@ -164,7 +173,7 @@ app.get("/api/profile", authenticateUser, (req: any, res) => {
   res.json(userWithoutPassword);
 });
 
-// User Profile - Upgrade / Change subscription tier (Payment simulation)
+// User Profile - Upgrade / Change subscription tier
 app.post("/api/profile/upgrade", authenticateUser, async (req: any, res) => {
   try {
     const { plan, paymentDetails } = req.body;
@@ -175,7 +184,6 @@ app.post("/api/profile/upgrade", authenticateUser, async (req: any, res) => {
       return res.status(404).json({ error: "User profile not found." });
     }
 
-    // Simulate payment verification delay
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
     if (plan === "Free Starter" || !plan) {
@@ -183,7 +191,7 @@ app.post("/api/profile/upgrade", authenticateUser, async (req: any, res) => {
       db.users[userIndex].plan = "Free Starter";
     } else {
       db.users[userIndex].isPremium = true;
-      db.users[userIndex].plan = plan; // e.g., "Premium Pro" or "Enterprise Advocate"
+      db.users[userIndex].plan = plan;
     }
 
     saveDb(db);
@@ -299,7 +307,6 @@ app.post("/api/analyze", async (req, res) => {
     let promptText = "";
 
     if (audio && audio.data && audio.mimeType) {
-      // Gemini natively accepts audio files for multimodal reasoning and transcription!
       contents.push({
         inlineData: {
           mimeType: audio.mimeType,
@@ -323,7 +330,6 @@ ${text}
     };
     const targetLanguage = languageNames[language] || "English";
 
-    // Append standard context and instructions
     promptText += `
 Context Category (optional instruction, prioritize finding rights issues in this field): ${category || "General / Miscellaneous"}
 
@@ -498,31 +504,8 @@ Remember: Include a standard educational disclaimer that this is for educational
   }
 });
 
-async function main() {
-  if (process.env.NODE_ENV !== "production") {
-    // Vite dev server middleware integration
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-    console.log("Vite development middleware loaded.");
-  } else {
-    // In production, serve the built static front-end assets
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
-    console.log("Production static files server configured.");
-  }
-
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`AI Pocket Advocate server running on port ${PORT}`);
-  });
-}
-
-main().catch((err) => {
-  console.error("Server startup error:", err);
-  process.exit(1);
+// 4. Cleaned up standalone API Execution Server 
+// (Decoupled from serving Vite static assets since Vercel handles that natively)
+app.listen(Number(PORT), "0.0.0.0", () => {
+  console.log(`AI Pocket Advocate API backend running on port ${PORT}`)
 });
