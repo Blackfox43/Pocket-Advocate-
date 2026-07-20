@@ -235,6 +235,9 @@ const generatePDF = (items: (UserSavedDocument | SavedSession)[], filename: stri
   doc.save(filename);
 };
 
+// Define global API Base URL resolution outside component
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
 export default function AuthProfile({
   currentUser,
   authToken,
@@ -308,7 +311,9 @@ export default function AuthProfile({
     setError(null);
     setLoading(true);
 
-    const url = isRegistering ? "/api/auth/register" : "/api/auth/login";
+    const endpoint = isRegistering ? "/api/auth/register" : "/api/auth/login";
+    const url = `${API_BASE}${endpoint}`;
+    
     const body = isRegistering 
       ? { email, password, name, address }
       : { email, password };
@@ -350,7 +355,7 @@ export default function AuthProfile({
     setLoading(true);
 
     try {
-      const response = await fetch("/api/profile", {
+      const response = await fetch(`${API_BASE}/api/profile`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -781,6 +786,7 @@ export default function AuthProfile({
                           <button
                             onClick={handleExportSessionsPDF}
                             className="text-[10px] bg-emerald-600/10 border border-emerald-500/20 text-emerald-400 hover:text-emerald-300 px-2 py-0.5 rounded flex items-center gap-1 cursor-pointer transition"
+                            title="Export all local sessions as PDF"
                           >
                             PDF
                           </button>
