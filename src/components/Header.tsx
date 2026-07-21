@@ -28,10 +28,10 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Brand Logo */}
         <div className="flex items-center space-x-3">
           <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/20">
-            A
+            ⚖️
           </div>
           <span className="font-bold text-lg text-white tracking-tight">
-            AppEngine<span className="text-indigo-400">.ai</span>
+            AI Pocket <span className="text-indigo-400">Advocate</span>
           </span>
         </div>
 
