@@ -1,7 +1,7 @@
 import express from "express";
 import path from "path";
 import dotenv from "dotenv";
-import cors from "cors"; // 1. Added CORS import
+import cors from "cors";
 import { GoogleGenAI, Type } from "@google/genai";
 import fs from "fs";
 
@@ -10,16 +10,22 @@ dotenv.config();
 
 const app = express();
 
-// 2. Dynamic Port Selection for Render
-const PORT = process.env.PORT || 3000; 
+// Dynamic Port Selection for Render
+const PORT = process.env.PORT || 3000;
 
-// 3. Enable CORS Configuration
-// In production, change origin to your specific Vercel URL: "https://your-frontend.vercel.app"
-app.use(cors({
-  origin: "*", 
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
-}));
+// Enable CORS Configuration for Vercel Frontend and Local Dev
+app.use(
+  cors({
+    origin: [
+      "https://pocket-advocate.vercel.app", // Update with your actual Vercel domain if different
+      "http://localhost:5173",
+      "http://localhost:3000",
+    ],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+  })
+);
 
 // Parse JSON request bodies up to 50MB (to allow audio base64 payload uploads)
 app.use(express.json({ limit: "50mb" }));
@@ -51,7 +57,6 @@ app.get("/api/health", (req, res) => {
 });
 
 // NOTE: Disk storage warning on Render Free Web Services
-// A persistent database solution (PostgreSQL/Supabase) is strongly recommended for final rollout.
 const DB_DIR = path.join(process.cwd(), "data");
 const DB_FILE = path.join(DB_DIR, "db.json");
 
@@ -113,11 +118,11 @@ app.post("/api/auth/register", (req, res) => {
       id: "u_" + Math.random().toString(36).substr(2, 9),
       email: email.toLowerCase(),
       name,
-      password, 
+      password,
       address: address || "No address provided",
       created_at: new Date().toISOString(),
       isPremium: false,
-      plan: "Free Starter"
+      plan: "Free Starter",
     };
 
     db.users.push(newUser);
@@ -184,26 +189,28 @@ app.post("/api/profile/upgrade", authenticateUser, async (req: any, res) => {
       return res.status(404).json({ error: "User profile not found." });
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
+    // Process subscription update
     if (plan === "Free Starter" || !plan) {
       db.users[userIndex].isPremium = false;
       db.users[userIndex].plan = "Free Starter";
     } else {
       db.users[userIndex].isPremium = true;
       db.users[userIndex].plan = plan;
+      if (paymentDetails?.lastFour) {
+        db.users[userIndex].lastPaymentLastFour = paymentDetails.lastFour;
+      }
     }
 
     saveDb(db);
 
     const { password: _, ...updatedUser } = db.users[userIndex];
-    res.json({
+    return res.status(200).json({
       success: true,
       message: `Successfully updated plan to ${plan}`,
-      user: updatedUser
+      user: updatedUser,
     });
   } catch (error: any) {
-    res.status(500).json({ error: "Failed to upgrade subscription tier." });
+    return res.status(500).json({ error: "Failed to upgrade subscription tier." });
   }
 });
 
@@ -259,7 +266,7 @@ app.post("/api/documents", authenticateUser, (req: any, res) => {
       category,
       opponentName: opponentName || "Opponent",
       result,
-      letterContent
+      letterContent,
     };
 
     db.documents.push(newDoc);
@@ -326,7 +333,7 @@ ${text}
       en: "English",
       es: "Spanish (Español)",
       zh: "Chinese (中文)",
-      vi: "Vietnamese (Tiếng Việt)"
+      vi: "Vietnamese (Tiếng Việt)",
     };
     const targetLanguage = languageNames[language] || "English";
 
@@ -400,10 +407,10 @@ Ensure you respond in valid JSON format matching the requested schema. Do not in
                   legalReference: {
                     type: Type.STRING,
                     description: "General legal principle, standard tenant/employee/consumer protection laws, or acts (e.g. security deposit timelines, overtime laws, bad faith claims) to reference.",
-                  }
+                  },
                 },
-                required: ["term", "explanation", "legalReference"]
-              }
+                required: ["term", "explanation", "legalReference"],
+              },
             },
             replies: {
               type: Type.OBJECT,
@@ -412,31 +419,31 @@ Ensure you respond in valid JSON format matching the requested schema. Do not in
                   type: Type.OBJECT,
                   properties: {
                     text: { type: Type.STRING, description: "Assertive, clear, and direct reply that sets boundaries immediately." },
-                    rationale: { type: Type.STRING, description: "Why/when to use this assertive reply." }
+                    rationale: { type: Type.STRING, description: "Why/when to use this assertive reply." },
                   },
-                  required: ["text", "rationale"]
+                  required: ["text", "rationale"],
                 },
                 legal: {
                   type: Type.OBJECT,
                   properties: {
                     text: { type: Type.STRING, description: "A highly informed reply that professionally references standard legal protections or rights." },
-                    rationale: { type: Type.STRING, description: "When to use this legal reference reply (e.g., if they push back or persist)." }
+                    rationale: { type: Type.STRING, description: "When to use this legal reference reply (e.g., if they push back or persist)." },
                   },
-                  required: ["text", "rationale"]
+                  required: ["text", "rationale"],
                 },
                 polite: {
                   type: Type.OBJECT,
                   properties: {
                     text: { type: Type.STRING, description: "A collaborative, cooperative, yet protective reply to de-escalate tension." },
-                    rationale: { type: Type.STRING, description: "When to use this de-escalation reply." }
+                    rationale: { type: Type.STRING, description: "When to use this de-escalation reply." },
                   },
-                  required: ["text", "rationale"]
-                }
+                  required: ["text", "rationale"],
+                },
               },
-              required: ["firm", "legal", "polite"]
-            }
+              required: ["firm", "legal", "polite"],
+            },
           },
-          required: ["transcript", "negotiationType", "riskLevel", "summary", "violations", "replies"]
+          required: ["transcript", "negotiationType", "riskLevel", "summary", "violations", "replies"],
         },
       },
     });
@@ -451,7 +458,7 @@ Ensure you respond in valid JSON format matching the requested schema. Do not in
   } catch (error: any) {
     console.error("Analysis error:", error);
     res.status(500).json({
-      error: error.message || "Failed to analyze conversation. Please make sure your Gemini API key is configured correctly."
+      error: error.message || "Failed to analyze conversation. Please make sure your Gemini API key is configured correctly.",
     });
   }
 });
@@ -471,7 +478,7 @@ app.post("/api/faq-chat", async (req, res) => {
       en: "English",
       es: "Spanish (Español)",
       zh: "Chinese (中文)",
-      vi: "Vietnamese (Tiếng Việt)"
+      vi: "Vietnamese (Tiếng Việt)",
     };
     const targetLanguage = languageNames[language] || "English";
 
@@ -489,12 +496,12 @@ Remember: Include a standard educational disclaimer that this is for educational
     const response = await ai.models.generateContent({
       model: "gemini-3.5-flash",
       contents: [
-        { role: "user", parts: [{ text: `Category: ${resolvedCategory}\nQuestion: ${question}` }] }
+        { role: "user", parts: [{ text: `Category: ${resolvedCategory}\nQuestion: ${question}` }] },
       ],
       config: {
         systemInstruction: systemPrompt,
-        temperature: 0.2
-      }
+        temperature: 0.2,
+      },
     });
 
     const answer = response.text || "No response received from AI model.";
@@ -504,8 +511,7 @@ Remember: Include a standard educational disclaimer that this is for educational
   }
 });
 
-// 4. Cleaned up standalone API Execution Server 
-// (Decoupled from serving Vite static assets since Vercel handles that natively)
+// Standalone API Execution Server
 app.listen(Number(PORT), "0.0.0.0", () => {
-  console.log(`AI Pocket Advocate API backend running on port ${PORT}`)
+  console.log(`AI Pocket Advocate API backend running on port ${PORT}`);
 });
