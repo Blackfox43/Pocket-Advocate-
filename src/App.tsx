@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   Shield, 
   Scale, 
@@ -7,17 +7,18 @@ import {
   Plus, 
   Lock, 
   ArrowRight,
-  ClipboardCheck,
+  Landmark,
+  UserCheck,
+  Bookmark,
   BookOpen,
   FileCheck2,
   Mic,
   Stamp,
   Gavel,
   MessageSquare,
-  Info,
-  Bookmark
+  Info
 } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence } from "framer-motion";
 
 import Header from "./components/Header";
 import AudioRecorder from "./components/AudioRecorder";
@@ -45,7 +46,7 @@ export default function App() {
   const t = translations[language];
 
   const [rehearsalScript, setRehearsalScript] = useState("Under state housing codes, landlord entry requires 24 hours written notice. Please provide a formal request in writing before attempting to schedule an inspection.");
-  const [rehearsalTone, setRehearsalTone] = useState("firm");
+  const [rehearsalTone, setRehearsalTone] = useState<"firm" | "legal" | "polite">("firm");
   const [activeInputTab, setActiveInputTab] = useState<"voice" | "text" | "intake">("voice");
   const [textInput, setTextInput] = useState("");
   const [opponentName, setOpponentName] = useState("");
@@ -75,7 +76,7 @@ export default function App() {
     try {
       const stored = localStorage.getItem("pocket_advocate_sessions");
       if (stored) {
-        const parsed = JSON.parse(stored);
+        const parsed: SavedSession[] = JSON.parse(stored);
         setSessions(parsed);
         if (parsed.length > 0) {
           setActiveResult(parsed[0].result);
@@ -88,7 +89,7 @@ export default function App() {
       const storedUser = localStorage.getItem("pocket_advocate_user");
       const storedToken = localStorage.getItem("pocket_advocate_token");
       if (storedUser && storedToken) {
-        const parsedUser = JSON.parse(storedUser);
+        const parsedUser: UserProfile = JSON.parse(storedUser);
         setCurrentUser(parsedUser);
         setAuthToken(storedToken);
         fetchSavedDocuments(storedToken);
@@ -159,7 +160,7 @@ export default function App() {
       });
 
       if (response.ok) {
-        const savedDoc = await response.json();
+        const savedDoc: UserSavedDocument = await response.json();
         setSavedDocuments([savedDoc, ...savedDocuments]);
         alert("Document successfully saved to your Profile Dashboard!");
       } else {
@@ -263,7 +264,7 @@ export default function App() {
       setActiveResult(result);
       setCurrentSessionId(newSession.id);
 
-   } catch (err: any) {
+    } catch (err: any) {
       console.error("Analysis Error:", err);
       setError(err.message || "Something went wrong while consulting the AI Advocate.");
     } finally {
@@ -348,13 +349,11 @@ export default function App() {
   };
 
   const handleClearAll = () => {
-    if (window.confirm("Are you sure you want to permanently clear all saved advocate consultations?")) {
-      saveSessions([]);
-      setActiveResult(null);
-      setCurrentSessionId(null);
-      setTextInput("");
-      setOpponentName("");
-    }
+    saveSessions([]);
+    setActiveResult(null);
+    setCurrentSessionId(null);
+    setTextInput("");
+    setOpponentName("");
   };
 
   const handleStartFresh = () => {
@@ -377,6 +376,7 @@ export default function App() {
         onLanguageChange={setLanguage}
       />
 
+      {/* Navigation Bar */}
       <div className="bg-slate-900/40 border-b border-slate-900 sticky top-0 z-30 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4 overflow-x-auto scrollbar-none">
           <div className="flex items-center gap-1.5 shrink-0">
@@ -487,6 +487,7 @@ export default function App() {
         </div>
       </div>
 
+      {/* Main Views */}
       <AnimatePresence mode="wait">
         {activeView === "howitworks" && (
           <motion.main 
@@ -522,7 +523,6 @@ export default function App() {
                           : "text-slate-400 hover:text-white"
                       }`}
                     >
-                      <ClipboardCheck className="w-3.5 h-3.5" />
                       Guided Intake
                     </button>
                     <button
@@ -568,7 +568,7 @@ export default function App() {
                     </label>
                     <select
                       value={category}
-                      onChange={(e: any) => setCategory(e.target.value)}
+                      onChange={(e) => setCategory(e.target.value as "landlord" | "employer" | "insurance" | "general")}
                       className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500/80 focus:ring-1 focus:ring-indigo-500/80 rounded-xl px-3.5 py-2 text-xs font-medium text-slate-200 outline-none transition-all duration-150"
                     >
                       <option value="landlord">Tenant vs. Landlord</option>
@@ -613,7 +613,7 @@ export default function App() {
                           Copied Conversation / Verbal Statement
                         </label>
                         <textarea
-                          placeholder="Paste verbal demands, phone summaries, or letters here to extract your legal rights and whisper reply templates..."
+                          placeholder="Paste verbal demands, phone summaries, or letters here to extract your legal rights and whispers reply templates..."
                           rows={5}
                           value={textInput}
                           onChange={(e) => setTextInput(e.target.value)}
@@ -723,74 +723,112 @@ export default function App() {
                       
                       {currentUser ? (
                         <button
-                          onClick={() => handleSaveDocumentToProfile(`Consultation with ${opponentName || "Opposing Party"}`)}
-                          className="px-3 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                          onClick={() => handleSaveDocumentToProfile(`Consultation with ${opponentName || "Opposing Party"} (${new Date().toLocaleDateString()})`)}
+                          className="flex items-center gap-1.5 text-[11px] bg-indigo-600 hover:bg-indigo-500 px-3 py-1.5 rounded-lg text-white font-semibold transition cursor-pointer"
                         >
                           <Bookmark className="w-3.5 h-3.5" />
-                          Save to Profile
+                          {t.saveToProfile}
                         </button>
                       ) : (
                         <button
                           onClick={() => setIsAuthOpen(true)}
-                          className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                          className="flex items-center gap-1.5 text-[11px] bg-slate-900 border border-slate-800 hover:bg-slate-850 px-3 py-1.5 rounded-lg text-slate-300 font-semibold transition cursor-pointer"
                         >
-                          <Lock className="w-3.5 h-3.5 text-amber-400" />
-                          Sign In to Save
+                          <Lock className="w-3 h-3 text-slate-500" />
+                          {t.signInToSave}
                         </button>
                       )}
                     </div>
 
-                    <AnalysisDisplay
-                      result={activeResult}
-                      opponentName={opponentName}
-                      category={category}
-                      onOpenPreview={(text) => {
-                        setPreviewLetterText(text);
-                        setIsPreviewOpen(true);
+                    <AnalysisDisplay 
+                      result={activeResult} 
+                      opponentName={opponentName || "Opposing Party"} 
+                      currentUser={currentUser}
+                      language={language}
+                      onSaveLetter={(letterText) => handleSaveDocumentToProfile(`Notice to ${opponentName || "Opposing Party"} (${new Date().toLocaleDateString()})`, letterText)}
+                      onPreviewLetter={(letterText) => {
+                        if (!currentUser || !currentUser.isPremium) {
+                          setPreviewLetterText(letterText);
+                          setIsUpgradeOpen(true);
+                        } else {
+                          setPreviewLetterText(letterText);
+                          setIsPreviewOpen(true);
+                        }
                       }}
-                    />
-
-                    <SessionHistory
-                      sessions={sessions}
-                      currentSessionId={currentSessionId}
-                      onSelectSession={handleSelectSession}
-                      onDeleteSession={handleDeleteSession}
-                      onClearAll={handleClearAll}
                     />
                   </motion.div>
                 ) : (
-                  <div className="p-8 rounded-2xl border border-slate-800/80 bg-slate-900/20 text-center space-y-4">
-                    <div className="p-3 bg-indigo-500/10 rounded-full w-fit mx-auto border border-indigo-500/20 text-indigo-400">
-                      <Shield className="w-8 h-8" />
+                  <motion.div
+                    key="idle-placeholder"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="p-8 rounded-2xl border border-slate-800/80 bg-slate-900/10 backdrop-blur-sm text-center max-w-xl mx-auto py-12 space-y-6"
+                  >
+                    <div className="mx-auto w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-indigo-600/10 flex items-center justify-center text-indigo-400 border border-indigo-500/20 shadow-xl shadow-indigo-950/20">
+                      <Shield className="w-7 h-7" />
                     </div>
-                    <div className="space-y-1">
-                      <h3 className="text-base font-bold text-white">No Active Consultation</h3>
-                      <p className="text-xs text-slate-400 max-w-md mx-auto">
-                        Record a verbal statement, paste a conversation, or select a scenario preset to generate an instant legal breakdown and strategy.
+
+                    <div>
+                      <h3 className="font-sans font-bold text-lg text-white">
+                        {t.idleTitle}
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto leading-relaxed">
+                        {t.idleSubtitle}
                       </p>
                     </div>
-                    <button
-                      onClick={() => setActiveView("playground")}
-                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition shadow-lg shadow-indigo-600/20 cursor-pointer inline-flex items-center gap-2"
-                    >
-                      <Sparkles className="w-4 h-4" />
-                      Explore Pre-configured Scenarios
-                    </button>
 
-                    {sessions.length > 0 && (
-                      <div className="pt-6 border-t border-slate-900 text-left">
-                        <SessionHistory
-                          sessions={sessions}
-                          currentSessionId={currentSessionId}
-                          onSelectSession={handleSelectSession}
-                          onDeleteSession={handleDeleteSession}
-                          onClearAll={handleClearAll}
-                        />
+                    <div className="grid grid-cols-1 gap-3 text-xs text-slate-300 max-w-md mx-auto text-left pl-4">
+                      <div className="flex items-start gap-3">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-indigo-400 text-[10px] font-bold font-mono">
+                          1
+                        </span>
+                        <p className="leading-relaxed">
+                          {t.idleStep1}
+                        </p>
                       </div>
-                    )}
-                  </div>
+                      
+                      <div className="flex items-start gap-3">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-bold font-mono">
+                          2
+                        </span>
+                        <p className="leading-relaxed">
+                          {t.idleStep2}
+                        </p>
+                      </div>
+
+                      <div className="flex items-start gap-3">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-purple-500/10 text-purple-400 text-[10px] font-bold font-mono">
+                          3
+                        </span>
+                        <p className="leading-relaxed">
+                          {t.idleStep3}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-900 flex items-center justify-center gap-4 text-[11px] text-slate-500 font-mono">
+                      <span className="flex items-center gap-1">
+                        <Landmark className="w-3.5 h-3.5" />
+                        {t.standardActs}
+                      </span>
+                      <span>•</span>
+                      <span className="flex items-center gap-1">
+                        <UserCheck className="w-3.5 h-3.5" />
+                        {t.civicProtection}
+                      </span>
+                    </div>
+                  </motion.div>
                 )}
               </AnimatePresence>
+
+              <SessionHistory
+                sessions={sessions}
+                onSelectSession={handleSelectSession}
+                onDeleteSession={handleDeleteSession}
+                onClearAll={handleClearAll}
+                currentSessionId={currentSessionId || undefined}
+              />
             </section>
           </motion.main>
         )}
@@ -802,12 +840,24 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
             transition={{ duration: 0.2 }}
-            className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 lg:p-8"
+            className="flex-1 max-w-5xl w-full mx-auto p-4 md:p-6 lg:p-8 space-y-6"
           >
+            <div className="text-center max-w-xl mx-auto space-y-2 mb-4">
+              <div className="mx-auto w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                <FileCheck2 className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-bold text-white">Dispute Scenario Playground</h3>
+              <p className="text-xs text-slate-400">
+                Explore tenant, employee, and insurance policyholder protection tactics. Select a scenario blueprint and click to load it instantly into your Counseling workspace to run analysis.
+              </p>
+            </div>
+            
             <ScenarioSelector 
-              presets={PRESET_SCENARIOS} 
-              onSelectPreset={handleSelectPreset} 
-              selectedPresetId={selectedPresetId} 
+              onSelect={(preset) => {
+                handleSelectPreset(preset);
+                setActiveView("counseling");
+              }} 
+              selectedId={selectedPresetId} 
             />
           </motion.main>
         )}
@@ -819,9 +869,21 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
             transition={{ duration: 0.2 }}
-            className="flex-1 max-w-5xl w-full mx-auto p-4 md:p-6 lg:p-8"
+            className="flex-1 max-w-4xl w-full mx-auto p-4 md:p-6 lg:p-8 space-y-6"
           >
-            <FAQChat language={language} />
+            <div className="text-center max-w-xl mx-auto space-y-2 mb-4">
+              <div className="mx-auto w-12 h-12 rounded-xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400">
+                <MessageSquare className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-bold text-white">Legal Companion FAQ Desk</h3>
+              <p className="text-xs text-slate-400">
+                Ask general regulatory questions about tenancy laws, Fair Labor Standards Act provisions, or insurance bad-faith protocols.
+              </p>
+            </div>
+            
+            <div className="bg-slate-900/20 border border-slate-800 rounded-3xl p-6">
+              <FAQChat category={category} />
+            </div>
           </motion.main>
         )}
 
@@ -832,9 +894,19 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
             transition={{ duration: 0.2 }}
-            className="flex-1 max-w-6xl w-full mx-auto p-4 md:p-6 lg:p-8"
+            className="flex-1 max-w-5xl w-full mx-auto p-4 md:p-6 lg:p-8 space-y-6"
           >
-            <RightsLibrary category={category} />
+            <div className="text-center max-w-xl mx-auto space-y-2 mb-4">
+              <div className="mx-auto w-12 h-12 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400">
+                <BookOpen className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-bold text-white">Interactive Rights & Codes Library</h3>
+              <p className="text-xs text-slate-400">
+                Search federal regulations, state statutes, and standard civil defense frameworks directly.
+              </p>
+            </div>
+            
+            <RightsLibrary />
           </motion.main>
         )}
 
@@ -845,14 +917,71 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
             transition={{ duration: 0.2 }}
-            className="flex-1 max-w-5xl w-full mx-auto p-4 md:p-6 lg:p-8"
+            className="flex-1 max-w-4xl w-full mx-auto p-4 md:p-6 lg:p-8 space-y-6"
           >
-            <RehearsalCoach 
-              script={rehearsalScript} 
-              tone={rehearsalTone} 
-              setScript={setRehearsalScript} 
-              setTone={setRehearsalTone} 
-            />
+            <div className="text-center max-w-xl mx-auto space-y-2 mb-6">
+              <div className="mx-auto w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+                <Mic className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-bold text-white">Speech Rehearsal Studio</h3>
+              <p className="text-xs text-slate-400">
+                Speak clearly, test your pitch dynamics, and practice delivering assertive verbal templates correctly.
+              </p>
+            </div>
+
+            <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/20 backdrop-blur-sm space-y-4">
+              <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider font-mono">1. Prepare Your Script</h4>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-mono text-slate-400 uppercase mb-1.5">Preset Template Tones</label>
+                  <select
+                    value={rehearsalTone}
+                    onChange={(e) => {
+                      const newTone = e.target.value as "firm" | "legal" | "polite";
+                      setRehearsalTone(newTone);
+                      if (activeResult) {
+                        setRehearsalScript(activeResult.replies[newTone]?.text || "");
+                      }
+                    }}
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500/80 focus:ring-1 focus:ring-indigo-500/80 rounded-xl px-3.5 py-2 text-xs font-medium text-slate-200 outline-none transition"
+                  >
+                    <option value="firm">Firm & Boundary-focused</option>
+                    <option value="legal">Legal & Statute-focused</option>
+                    <option value="polite">Polite & De-escalating</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-mono text-slate-400 uppercase mb-1.5">Load Script From</label>
+                  <button
+                    onClick={() => {
+                      if (activeResult) {
+                        setRehearsalScript(activeResult.replies[rehearsalTone]?.text || "");
+                      } else {
+                        setRehearsalScript("Under state housing codes, landlord entry requires 24 hours written notice. Please provide a formal request in writing before attempting to schedule an inspection.");
+                      }
+                    }}
+                    className="w-full bg-slate-950 hover:bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 text-xs py-2.5 rounded-xl transition font-semibold cursor-pointer"
+                  >
+                    {activeResult ? "⚡ Load Active Consult Replies" : "✍️ Load Practice Lease Template"}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-mono text-slate-400 uppercase mb-1.5">Script Text (Edit to customize)</label>
+                <textarea
+                  rows={4}
+                  value={rehearsalScript}
+                  onChange={(e) => setRehearsalScript(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl p-3 text-xs text-slate-200 outline-none resize-none font-sans leading-relaxed"
+                  placeholder="Enter custom response text to practice speaking..."
+                />
+              </div>
+            </div>
+
+            <RehearsalCoach selectedReplyText={rehearsalScript} tone={rehearsalTone} />
           </motion.main>
         )}
 
@@ -863,11 +992,17 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
             transition={{ duration: 0.2 }}
-            className="flex-1 max-w-6xl w-full mx-auto p-4 md:p-6 lg:p-8"
+            className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 lg:p-8"
           >
-            <CertifiedLetterheadStudio 
-              currentUser={currentUser} 
-              onOpenUpgrade={() => setIsUpgradeOpen(true)} 
+            <CertifiedLetterheadStudio
+              currentUser={currentUser}
+              authToken={authToken}
+              savedDocuments={savedDocuments}
+              onOpenUpgrade={() => setIsUpgradeOpen(true)}
+              onPreviewLetter={(text) => {
+                setPreviewLetterText(text);
+                setIsPreviewOpen(true);
+              }}
             />
           </motion.main>
         )}
@@ -879,41 +1014,61 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
             transition={{ duration: 0.2 }}
-            className="flex-1 max-w-6xl w-full mx-auto p-4 md:p-6 lg:p-8"
+            className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 lg:p-8"
           >
-            <MockCourtSimulator 
-              currentUser={currentUser} 
-              onOpenUpgrade={() => setIsUpgradeOpen(true)} 
+            <MockCourtSimulator
+              currentUser={currentUser}
+              authToken={authToken}
+              onOpenUpgrade={() => setIsUpgradeOpen(true)}
             />
           </motion.main>
         )}
       </AnimatePresence>
 
-      <FormalPrintPreview
-        isOpen={isPreviewOpen}
-        onClose={() => setIsPreviewOpen(false)}
-        letterText={previewLetterText}
-        opponentName={opponentName}
-      />
-
       <AuthProfile
-        isOpen={isAuthOpen}
-        onClose={() => setIsAuthOpen(false)}
         currentUser={currentUser}
         authToken={authToken}
         savedDocuments={savedDocuments}
+        savedSessions={sessions}
         onLoginSuccess={handleLoginSuccess}
         onLogout={handleLogout}
         onUpdateProfileSuccess={handleUpdateProfileSuccess}
         onLoadSavedDocument={handleLoadSavedDocument}
-        onDeleteSavedDocument={handleDeleteSavedDocument}
+        onDeleteDocument={handleDeleteSavedDocument}
+        isOpen={isAuthOpen}
+        onClose={() => setIsAuthOpen(false)}
+        onOpenUpgrade={() => setIsUpgradeOpen(true)}
+      />
+
+      <FormalPrintPreview
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        letterContent={previewLetterText}
+        opponentName={opponentName}
       />
 
       <UpgradeModal
         isOpen={isUpgradeOpen}
         onClose={() => setIsUpgradeOpen(false)}
         currentUser={currentUser}
+        authToken={authToken}
+        onUpgradeSuccess={(updatedUser) => {
+          setCurrentUser(updatedUser);
+          localStorage.setItem("pocket_advocate_user", JSON.stringify(updatedUser));
+        }}
+        onOpenAuth={() => setIsAuthOpen(true)}
       />
+
+      <footer className="border-t border-slate-900 py-4 px-6 mt-12 bg-slate-950/40 text-center text-[10px] text-slate-600">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+          <span>
+            © 2026 AI Pocket Advocate. Defending everyday civilians from predatory legal terms.
+          </span>
+          <span className="font-mono text-[9px] text-slate-500/80 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+            EDUCATIONAL GUIDANCE PLATFORM • NOT OFFICIAL ATTORNEY COUNSEL
+          </span>
+        </div>
+      </footer>
     </div>
   );
 }
