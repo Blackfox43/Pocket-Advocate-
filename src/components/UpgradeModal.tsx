@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 
-// Standard production practice: Read from VITE_API_URL or fallback to your Render backend URL
 const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "https://pocket-advocate-backend.onrender.com";
+  (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_API_URL)
+    ? import.meta.env.VITE_API_URL
+    : "https://pocket-advocate-backend.onrender.com";
 
 interface UpgradeModalProps {
   planName: string;
@@ -23,7 +24,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
   onUpgradeSuccess,
   onClose,
 }) => {
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [step, setStep] = useState<"form" | "success">("form");
 
@@ -32,7 +33,6 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
     setErrorMessage(null);
 
     try {
-      // Direct call to Render backend URL to bypass Vercel relative path routing
       const response = await fetch(`${API_BASE_URL}/api/profile/upgrade`, {
         method: "POST",
         headers: {
@@ -48,14 +48,13 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
         }),
       });
 
-      // Safely read response text first to handle empty or HTML error responses safely
       const responseText = await response.text();
       let data: any = {};
 
       if (responseText) {
         try {
           data = JSON.parse(responseText);
-        } catch (parseError) {
+        } catch {
           throw new Error("Received an invalid response format from the server.");
         }
       }
@@ -64,7 +63,6 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
         throw new Error(data.error || data.message || `Server responded with status ${response.status}`);
       }
 
-      // Trigger success state and callback
       onUpgradeSuccess(data.user);
       setStep("success");
     } catch (err: any) {
