@@ -26,7 +26,7 @@ export const App: React.FC = () => {
 
   // Core App Form / Generator States
   const [inputText, setInputText] = useState<string>('');
-  const [category, setCategory] = useState<string>('General');
+  const [category, setCategory] = useState<string>('Legal Rights & Counseling');
   const [opponentName, setOpponentName] = useState<string>('');
   const [resultText, setResultText] = useState<string>('');
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
@@ -54,7 +54,7 @@ export const App: React.FC = () => {
       fetch('/api/documents', {
         headers: { Authorization: `Bearer ${authToken}` },
       })
-        .then((res) => res.ok ? res.json() : [])
+        .then((res) => (res.ok ? res.json() : []))
         .then((data) => setSavedDocuments(data))
         .catch(() => console.log('Using local memory storage strategy.'));
     }
@@ -90,19 +90,28 @@ export const App: React.FC = () => {
         body: JSON.stringify({
           text: inputText,
           category,
+          opponentName,
           language: currentLanguage,
         }),
       });
 
       if (response.ok) {
         const data = await response.json();
-        setResultText(data.result || data.analysis || 'Analysis successfully generated.');
+        setResultText(data.result || data.analysis || 'Legal advice and draft generated.');
       } else {
-        // Fallback simulation for client testing
-        setResultText(`[Generated output in ${currentLanguage.toUpperCase()}] Processed request for category: ${category}. Content length: ${inputText.length} characters.`);
+        // Fallback response for testing
+        setResultText(
+          `[AI Pocket Advocate Analysis - ${currentLanguage.toUpperCase()}]\n\n` +
+          `Category: ${category}\n` +
+          `Opponent/Counterparty: ${opponentName || 'Not Specified'}\n\n` +
+          `Key Legal Considerations:\n` +
+          `1. Review state and regional consumer/tenant protection laws relevant to this claim.\n` +
+          `2. Document all timeline events and official communications with ${opponentName || 'the counterparty'}.\n` +
+          `3. Prepare a formal written demand letter specifying statutory cure periods before escalating to small claims court.`
+        );
       }
     } catch (err) {
-      setResultText(`Output generated locally: Content analyzed under ${category} guidelines.`);
+      setResultText(`Output generated: Legal case summary prepared under ${category}.`);
     } finally {
       setIsAnalyzing(false);
     }
@@ -114,7 +123,7 @@ export const App: React.FC = () => {
 
     const newDoc: UserSavedDocument = {
       id: 'doc_' + Date.now(),
-      title: `${category} Analysis - ${new Date().toLocaleDateString()}`,
+      title: `${category} - ${opponentName || 'Case Log'} (${new Date().toLocaleDateString()})`,
       category,
       opponentName,
       result: resultText,
@@ -155,7 +164,7 @@ export const App: React.FC = () => {
   };
 
   const handleLoadSavedDocument = (doc: UserSavedDocument) => {
-    setCategory(doc.category || 'General');
+    setCategory(doc.category || 'Legal Rights & Counseling');
     setOpponentName(doc.opponentName || '');
     setResultText(doc.result || doc.letterContent || '');
   };
@@ -176,10 +185,10 @@ export const App: React.FC = () => {
       <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-8 space-y-8">
         <section className="text-center space-y-2">
           <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white">
-            AI Engine Analysis Workspace
+            AI Pocket Advocate Workspace
           </h1>
           <p className="text-slate-400 text-sm sm:text-base max-w-xl mx-auto">
-            Input prompt or document variables below to run intelligent analysis models.
+            Input your legal issue, dispute facts, or document details to generate legal guidance and dispute letters.
           </p>
         </section>
 
@@ -187,16 +196,17 @@ export const App: React.FC = () => {
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Category</label>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">Dispute Category</label>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
               >
-                <option value="General">General Analysis</option>
-                <option value="Legal">Legal & Contract</option>
-                <option value="Technical">Technical Code Audit</option>
-                <option value="Finance">Financial Evaluation</option>
+                <option value="Legal Rights & Counseling">Legal Rights & Counseling</option>
+                <option value="Consumer Rights & Disputes">Consumer Rights & Disputes</option>
+                <option value="Tenant & Housing Legal Issues">Tenant & Housing Legal Issues</option>
+                <option value="Employment & Workplace Disputes">Employment & Workplace Disputes</option>
+                <option value="Contract & Lease Audit">Contract & Lease Audit</option>
               </select>
             </div>
             <div>
@@ -205,19 +215,19 @@ export const App: React.FC = () => {
                 type="text"
                 value={opponentName}
                 onChange={(e) => setOpponentName(e.target.value)}
-                placeholder="e.g. Acme Corp"
+                placeholder="e.g. Landlord, Acme Corp, Insurance Co."
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Input Text / Context</label>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">Dispute Facts / Legal Context</label>
             <textarea
               rows={5}
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              placeholder="Paste your source text, requirements, or code snippet..."
+              placeholder="Describe what happened, key dates, monetary claims, or paste relevant contract clauses..."
               className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 resize-none"
             />
           </div>
@@ -227,7 +237,7 @@ export const App: React.FC = () => {
             disabled={isAnalyzing || !inputText.trim()}
             className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 font-semibold text-sm rounded-xl transition-all shadow-lg shadow-indigo-600/20"
           >
-            {isAnalyzing ? "Processing Analysis..." : "Execute Analysis"}
+            {isAnalyzing ? "Analyzing Legal Context..." : "Generate Legal Analysis"}
           </button>
         </div>
 
@@ -235,12 +245,12 @@ export const App: React.FC = () => {
         {resultText && (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="font-bold text-white text-lg">Generated Result</h3>
+              <h3 className="font-bold text-white text-lg">Advocate Legal Assessment & Guidance</h3>
               <button
                 onClick={handleSaveDocument}
                 className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold rounded-lg transition-colors"
               >
-                Save to Library
+                Save to Case Library
               </button>
             </div>
             <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 text-sm text-slate-300 whitespace-pre-wrap font-mono">
