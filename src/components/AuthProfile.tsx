@@ -189,7 +189,7 @@ const generatePDF = (items: (UserSavedDocument | SavedSession)[], filename: stri
           addText(`LEGAL AUTHORITY: ${v.legalReference}`, 9, "bold", [67, 56, 202], 3.5, 6);
         });
       }
-      const API_BASE = "https://pocket-advocate-backend.onrender.com";
+  
       addDivider();
 
       addText("STRATEGIC VERBAL REPLY PLAYS", 11, "bold", [15, 23, 42], 3);
@@ -236,7 +236,7 @@ const generatePDF = (items: (UserSavedDocument | SavedSession)[], filename: stri
 };
 
 // Define global API Base URL resolution outside component
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
+const API_BASE = "https://pocket-advocate-backend.onrender.com";
 
 export default function AuthProfile({
   currentUser,
