@@ -17,7 +17,8 @@ const PORT = process.env.PORT || 3000;
 app.use(
   cors({
     origin: [
-      "https://pocket-advocate.vercel.app", // Update with your actual Vercel domain if different
+      "https://pocket-advocate.vercel.app",
+      "https://pocket-advocate-tawny.vercel.app",
       "http://localhost:5173",
       "http://localhost:3000",
     ],
@@ -34,11 +35,11 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 let aiClient: GoogleGenAI | null = null;
 
 function getGeminiClient(): GoogleGenAI {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY is missing in backend environment variables. Please configure GEMINI_API_KEY in your server settings.");
+  }
   if (!aiClient) {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error("GEMINI_API_KEY is missing. Please add it to your secrets panel in Settings.");
-    }
     aiClient = new GoogleGenAI({
       apiKey,
       httpOptions: {
@@ -56,7 +57,7 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "healthy", time: new Date().toISOString() });
 });
 
-// NOTE: Disk storage warning on Render Free Web Services
+// Disk storage setup
 const DB_DIR = path.join(process.cwd(), "data");
 const DB_FILE = path.join(DB_DIR, "db.json");
 
@@ -189,7 +190,6 @@ app.post("/api/profile/upgrade", authenticateUser, async (req: any, res) => {
       return res.status(404).json({ error: "User profile not found." });
     }
 
-    // Process subscription update
     if (plan === "Free Starter" || !plan) {
       db.users[userIndex].isPremium = false;
       db.users[userIndex].plan = "Free Starter";
@@ -301,14 +301,19 @@ app.delete("/api/documents/:id", authenticateUser, (req: any, res) => {
 // API endpoint to analyze audio or text conversations for legal rights
 app.post("/api/analyze", async (req, res) => {
   try {
-    const { text, audio, category, language } = req.body;
+    const { text, audio, category, language } = req.body || {};
 
     if (!text && !audio) {
-      res.status(400).json({ error: "Please provide either conversation text or recorded audio." });
-      return;
+      return res.status(400).json({ error: "Please provide either conversation text or recorded audio." });
     }
 
-    const ai = getGeminiClient();
+    let ai;
+    try {
+      ai = getGeminiClient();
+    } catch (keyErr: any) {
+      console.error("Gemini initialization failed:", keyErr.message);
+      return res.status(500).json({ error: keyErr.message || "Gemini API key is not configured on server." });
+    }
 
     let contents: any[] = [];
     let promptText = "";
@@ -359,14 +364,14 @@ This includes:
 - 'replies' (both 'text' and 'rationale' for 'firm', 'legal', and 'polite' must be fully translated into ${targetLanguage})
 The 'transcript' field should be represented in ${targetLanguage} if translated, or if the original input was in another language, translate it to ${targetLanguage} so the user can easily read it.
 
-Ensure you respond in valid JSON format matching the requested schema. Do not include markdown wraps around the JSON inside the response (or if you do, ensure it parses as standard JSON).`;
+Ensure you respond in valid JSON format matching the requested schema.`;
 
     contents.push({ text: promptText });
 
     const systemInstruction = `You are AI Pocket Advocate, an expert legal rights guide. You help everyday tenants, employees, insurance policyholders, and customers level the playing field against landlords, bosses, or agents during negotiations. Identify pressure tactics, shady clauses, or rights violations, and provide reply templates (firm, legal, and polite). Always include a supportive, protective vibe and a brief educational disclaimer. You MUST output all response text in ${targetLanguage} when requested.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.5-flash",
       contents,
       config: {
         systemInstruction,
@@ -450,14 +455,14 @@ Ensure you respond in valid JSON format matching the requested schema. Do not in
 
     const responseText = response.text;
     if (!responseText) {
-      throw new Error("No response generated from Gemini.");
+      return res.status(500).json({ error: "No response generated from AI model." });
     }
 
     const data = JSON.parse(responseText.trim());
-    res.json(data);
+    return res.json(data);
   } catch (error: any) {
     console.error("Analysis error:", error);
-    res.status(500).json({
+    return res.status(500).json({
       error: error.message || "Failed to analyze conversation. Please make sure your Gemini API key is configured correctly.",
     });
   }
@@ -466,12 +471,19 @@ Ensure you respond in valid JSON format matching the requested schema. Do not in
 // AI-Powered Legal FAQ Chatbot Endpoint
 app.post("/api/faq-chat", async (req, res) => {
   try {
-    const { question, category, language } = req.body;
+    const { question, category, language } = req.body || {};
     if (!question) {
       return res.status(400).json({ error: "Please enter a question." });
     }
 
-    const ai = getGeminiClient();
+    let ai;
+    try {
+      ai = getGeminiClient();
+    } catch (keyErr: any) {
+      console.error("Gemini initialization failed:", keyErr.message);
+      return res.status(500).json({ error: keyErr.message || "Gemini API key is missing on backend server." });
+    }
+
     const resolvedCategory = category || "general";
 
     const languageNames: Record<string, string> = {
@@ -494,7 +506,7 @@ The user's preferred language is ${targetLanguage}. You MUST write the ENTIRE re
 Remember: Include a standard educational disclaimer that this is for educational purposes and not a substitute for formal attorney counsel. Keep answers concise, direct, and empathetic. Do not use markdown headers that are too deep.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.5-flash",
       contents: [
         { role: "user", parts: [{ text: `Category: ${resolvedCategory}\nQuestion: ${question}` }] },
       ],
@@ -505,9 +517,9 @@ Remember: Include a standard educational disclaimer that this is for educational
     });
 
     const answer = response.text || "No response received from AI model.";
-    res.json({ answer });
+    return res.json({ answer });
   } catch (error: any) {
-    res.status(500).json({ error: error.message || "Failed to generate AI response." });
+    return res.status(500).json({ error: error.message || "Failed to generate AI response." });
   }
 });
 
