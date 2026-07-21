@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 
 const API_BASE_URL =
-  (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_API_URL)
+  typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_API_URL
     ? import.meta.env.VITE_API_URL
     : "https://pocket-advocate-backend.onrender.com";
 
@@ -131,3 +131,6 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
     </div>
   );
 };
+
+// Added Default Export for App.tsx compatibility
+export default UpgradeModal;
