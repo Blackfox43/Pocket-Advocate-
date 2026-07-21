@@ -6,20 +6,20 @@ const API_BASE_URL =
     : "https://pocket-advocate-backend.onrender.com";
 
 interface UpgradeModalProps {
-  planName: string;
-  billingCycle: "monthly" | "lifetime";
-  cardName: string;
-  cardNumber: string;
+  planName?: string;
+  billingCycle?: "monthly" | "lifetime";
+  cardName?: string;
+  cardNumber?: string;
   authToken: string;
   onUpgradeSuccess: (user: any) => void;
   onClose: () => void;
 }
 
 export const UpgradeModal: React.FC<UpgradeModalProps> = ({
-  planName,
-  billingCycle,
-  cardName,
-  cardNumber,
+  planName = "Pro",
+  billingCycle = "monthly",
+  cardName = "",
+  cardNumber = "",
   authToken,
   onUpgradeSuccess,
   onClose,
@@ -32,6 +32,10 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
     setLoading(true);
     setErrorMessage(null);
 
+    // Safely parse last 4 digits even if cardNumber is empty or undefined
+    const safeCardNumber = cardNumber || "";
+    const lastFour = safeCardNumber.length >= 4 ? safeCardNumber.slice(-4) : "4242";
+
     try {
       const response = await fetch(`${API_BASE_URL}/api/profile/upgrade`, {
         method: "POST",
@@ -42,8 +46,8 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
         body: JSON.stringify({
           plan: `${planName} (${billingCycle === "lifetime" ? "Lifetime" : "Monthly"})`,
           paymentDetails: {
-            cardName,
-            lastFour: cardNumber.slice(-4),
+            cardName: cardName || "Cardholder",
+            lastFour: lastFour,
           },
         }),
       });
@@ -82,7 +86,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
             </h3>
             
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              Upgrading to <strong>{planName}</strong> ({billingCycle === "lifetime" ? "Lifetime Access" : "Monthly Billing"}).
+              Upgrading to <strong>{planName || "Selected Plan"}</strong> ({billingCycle === "lifetime" ? "Lifetime Access" : "Monthly Billing"}).
             </p>
 
             {errorMessage && (
@@ -132,5 +136,4 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
   );
 };
 
-// Added Default Export for App.tsx compatibility
 export default UpgradeModal;
