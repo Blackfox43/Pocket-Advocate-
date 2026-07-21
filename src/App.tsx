@@ -263,10 +263,10 @@ export default function App() {
       setActiveResult(result);
       setCurrentSessionId(newSession.id);
 
-    } catch (err: any) {
+   } catch (err: any) {
       console.error("Analysis Error:", err);
       setError(err.message || "Something went wrong while consulting the AI Advocate.");
-    } font-mono finally {
+    } finally {
       setIsProcessing(false);
     }
   };
