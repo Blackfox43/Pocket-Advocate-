@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 
-// Fallback to your production Render URL if env variable isn't set
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://pocket-advocate-backend.onrender.com';
+// Standard production practice: Read from VITE_API_URL or fallback to your Render backend URL
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL || "https://pocket-advocate-backend.onrender.com";
 
 interface UpgradeModalProps {
   planName: string;
-  billingCycle: 'monthly' | 'lifetime';
+  billingCycle: "monthly" | "lifetime";
   cardName: string;
   cardNumber: string;
   authToken: string;
@@ -24,21 +25,22 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
 }) => {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [step, setStep] = useState<'form' | 'success'>('form');
+  const [step, setStep] = useState<"form" | "success">("form");
 
   const handleUpgrade = async () => {
     setLoading(true);
     setErrorMessage(null);
 
     try {
+      // Direct call to Render backend URL to bypass Vercel relative path routing
       const response = await fetch(`${API_BASE_URL}/api/profile/upgrade`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`,
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
         },
         body: JSON.stringify({
-          plan: `${planName} (${billingCycle === 'lifetime' ? 'Lifetime' : 'Monthly'})`,
+          plan: `${planName} (${billingCycle === "lifetime" ? "Lifetime" : "Monthly"})`,
           paymentDetails: {
             cardName,
             lastFour: cardNumber.slice(-4),
@@ -46,49 +48,88 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
         }),
       });
 
-      // Read raw text first to avoid crashing if response is HTML or empty
-      const textData = await response.text();
+      // Safely read response text first to handle empty or HTML error responses safely
+      const responseText = await response.text();
       let data: any = {};
 
-      if (textData) {
+      if (responseText) {
         try {
-          data = JSON.parse(textData);
-        } catch {
-          throw new Error('Received an invalid non-JSON response from the server.');
+          data = JSON.parse(responseText);
+        } catch (parseError) {
+          throw new Error("Received an invalid response format from the server.");
         }
       }
 
       if (!response.ok) {
-        throw new Error(data.error || data.message || `Server error: ${response.status}`);
+        throw new Error(data.error || data.message || `Server responded with status ${response.status}`);
       }
 
+      // Trigger success state and callback
       onUpgradeSuccess(data.user);
-      setStep('success');
+      setStep("success");
     } catch (err: any) {
-      setErrorMessage(err.message || 'Something went wrong during payment processing.');
+      setErrorMessage(err.message || "Something went wrong during payment authorization.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="modal-container">
-      {step === 'form' ? (
-        <div>
-          <h3>Confirm Upgrade</h3>
-          {errorMessage && <p className="error-text" style={{ color: 'red' }}>{errorMessage}</p>}
-          <button onClick={handleUpgrade} disabled={loading}>
-            {loading ? 'Processing...' : 'Confirm & Pay'}
-          </button>
-          <button onClick={onClose} disabled={loading}>Cancel</button>
-        </div>
-      ) : (
-        <div>
-          <h3>Upgrade Successful!</h3>
-          <p>Your account status has been updated.</p>
-          <button onClick={onClose}>Close</button>
-        </div>
-      )}
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-slate-900">
+        {step === "form" ? (
+          <div className="space-y-4">
+            <h3 className="text-xl font-bold text-slate-800 dark:text-white">
+              Confirm Subscription Upgrade
+            </h3>
+            
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              Upgrading to <strong>{planName}</strong> ({billingCycle === "lifetime" ? "Lifetime Access" : "Monthly Billing"}).
+            </p>
+
+            {errorMessage && (
+              <div className="rounded-lg bg-red-50 p-3 text-sm text-red-600 dark:bg-red-950/50 dark:text-red-400">
+                {errorMessage}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={loading}
+                className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleUpgrade}
+                disabled={loading}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600"
+              >
+                {loading ? "Processing..." : "Confirm & Pay"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4 text-center">
+            <h3 className="text-xl font-bold text-slate-800 dark:text-white">
+              Upgrade Successful!
+            </h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              Your account tier has been updated to <strong>{planName}</strong>.
+            </p>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-full rounded-lg bg-emerald-600 py-2 text-sm font-medium text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600"
+            >
+              Done
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
