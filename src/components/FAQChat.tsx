@@ -2,11 +2,6 @@ import React, { useState, useRef, useEffect } from "react";
 import { MessageSquare, Send, Bot, User, Loader2, Sparkles, BookOpen, Scale, HelpCircle } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
-const API_BASE_URL =
-  (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_API_URL)
-    ? import.meta.env.VITE_API_URL
-    : "https://pocket-advocate-backend.onrender.com";
-
 interface FAQChatProps {
   category: "landlord" | "employer" | "insurance" | "general";
   language?: string;
@@ -165,7 +160,7 @@ export default function FAQChat({ category, language = "en" }: FAQChatProps) {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/faq-chat`, {
+      const response = await fetch("/api/faq-chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -177,19 +172,10 @@ export default function FAQChat({ category, language = "en" }: FAQChatProps) {
         })
       });
 
-      const responseText = await response.text();
-      let data: any = {};
-
-      if (responseText) {
-        try {
-          data = JSON.parse(responseText);
-        } catch {
-          throw new Error("Server returned an invalid non-JSON response.");
-        }
-      }
+      const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || `Server returned error status ${response.status}`);
+        throw new Error(data.error || "Failed to fetch response.");
       }
 
       const botMsg: ChatMessage = {
@@ -204,7 +190,7 @@ export default function FAQChat({ category, language = "en" }: FAQChatProps) {
       const errorMsg: ChatMessage = {
         id: "error_" + Date.now(),
         sender: "bot",
-        text: `⚠️ Error: ${e.message || "Failed to communicate with the Rights Educator. Please check network connection."}`,
+        text: `⚠️ Error: ${e.message || "Failed to communicate with the Rights Educator. Please check your network or API key settings."}`,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
       };
       setMessages((prev) => [...prev, errorMsg]);
@@ -213,14 +199,17 @@ export default function FAQChat({ category, language = "en" }: FAQChatProps) {
     }
   };
 
+  // Render chatbot text beautifully with styled blocks for sections
   const renderMessageContent = (text: string) => {
     if (!text) return null;
 
+    // Detect sections if present in formatted output
     const hasSimpleAnswer = text.includes("1. \"The Simple Answer\":") || text.includes("The Simple Answer:");
     const hasUnderLaw = text.includes("2. \"Under the Law\":") || text.includes("Under the Law:");
     const hasAdvice = text.includes("3. \"De-escalation Advice\":") || text.includes("De-escalation Advice:");
 
     if (hasSimpleAnswer || hasUnderLaw || hasAdvice) {
+      // Split or parse blocks
       return (
         <div className="space-y-3 font-sans text-xs text-slate-200 leading-relaxed">
           {text.split(/\n\n+/).map((block, idx) => {
@@ -283,6 +272,7 @@ export default function FAQChat({ category, language = "en" }: FAQChatProps) {
 
   return (
     <div className="bg-slate-900/40 rounded-2xl border border-slate-800/80 overflow-hidden flex flex-col h-[400px]">
+      {/* Header */}
       <div className="bg-slate-950/80 border-b border-slate-900 px-4 py-3 flex items-center gap-2">
         <div className="p-1 rounded-lg bg-indigo-500/15 border border-indigo-500/20">
           <Bot className="w-4 h-4 text-indigo-400" />
@@ -298,6 +288,7 @@ export default function FAQChat({ category, language = "en" }: FAQChatProps) {
         <span className="ml-auto w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
       </div>
 
+      {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 max-h-[290px]">
         {messages.map((msg) => (
           <div
@@ -331,6 +322,7 @@ export default function FAQChat({ category, language = "en" }: FAQChatProps) {
         <div ref={scrollRef} />
       </div>
 
+      {/* Presets suggestions overlay at bottom */}
       <div className="px-4 py-2 bg-slate-950/30 border-t border-slate-900/60 overflow-x-auto whitespace-nowrap flex gap-1.5 scrollbar-thin scrollbar-thumb-slate-800">
         {currentPresets.map((preset) => (
           <button
@@ -344,6 +336,7 @@ export default function FAQChat({ category, language = "en" }: FAQChatProps) {
         ))}
       </div>
 
+      {/* Input console */}
       <form
         onSubmit={(e) => {
           e.preventDefault();

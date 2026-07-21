@@ -1,32 +1,14 @@
 import express from "express";
 import path from "path";
 import dotenv from "dotenv";
-import cors from "cors";
 import { GoogleGenAI, Type } from "@google/genai";
-import fs from "fs";
+import { createServer as createViteServer } from "vite";
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
-
-// Dynamic Port Selection for Render
-const PORT = process.env.PORT || 3000;
-
-// Enable CORS Configuration for Vercel Frontend and Local Dev
-app.use(
-  cors({
-    origin: [
-      "https://pocket-advocate.vercel.app",
-      "https://pocket-advocate-tawny.vercel.app",
-      "http://localhost:5173",
-      "http://localhost:3000",
-    ],
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    credentials: true,
-  })
-);
+const PORT = 3000;
 
 // Parse JSON request bodies up to 50MB (to allow audio base64 payload uploads)
 app.use(express.json({ limit: "50mb" }));
@@ -35,11 +17,11 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 let aiClient: GoogleGenAI | null = null;
 
 function getGeminiClient(): GoogleGenAI {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY is missing in backend environment variables. Please configure GEMINI_API_KEY in your server settings.");
-  }
   if (!aiClient) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error("GEMINI_API_KEY is missing. Please add it to your secrets panel in Settings.");
+    }
     aiClient = new GoogleGenAI({
       apiKey,
       httpOptions: {
@@ -57,7 +39,9 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "healthy", time: new Date().toISOString() });
 });
 
-// Disk storage setup
+import fs from "fs";
+
+// Simple local JSON database setup
 const DB_DIR = path.join(process.cwd(), "data");
 const DB_FILE = path.join(DB_DIR, "db.json");
 
@@ -85,7 +69,7 @@ function saveDb(data: any) {
   fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), "utf8");
 }
 
-// Middleware to authenticate via Bearer token
+// Middleware to authenticate via Bearer token (which is the user's ID)
 function authenticateUser(req: any, res: any, next: any) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -119,11 +103,11 @@ app.post("/api/auth/register", (req, res) => {
       id: "u_" + Math.random().toString(36).substr(2, 9),
       email: email.toLowerCase(),
       name,
-      password,
+      password, // Plain-text for simpler educational local database
       address: address || "No address provided",
       created_at: new Date().toISOString(),
       isPremium: false,
-      plan: "Free Starter",
+      plan: "Free Starter"
     };
 
     db.users.push(newUser);
@@ -153,6 +137,7 @@ app.post("/api/auth/login", (req, res) => {
       return res.status(400).json({ error: "Invalid email or password." });
     }
 
+    // Backwards compatibility for pre-existing users without isPremium/plan
     if (user.isPremium === undefined) {
       user.isPremium = false;
       user.plan = "Free Starter";
@@ -179,7 +164,7 @@ app.get("/api/profile", authenticateUser, (req: any, res) => {
   res.json(userWithoutPassword);
 });
 
-// User Profile - Upgrade / Change subscription tier
+// User Profile - Upgrade / Change subscription tier (Payment simulation)
 app.post("/api/profile/upgrade", authenticateUser, async (req: any, res) => {
   try {
     const { plan, paymentDetails } = req.body;
@@ -190,27 +175,27 @@ app.post("/api/profile/upgrade", authenticateUser, async (req: any, res) => {
       return res.status(404).json({ error: "User profile not found." });
     }
 
+    // Simulate payment verification delay
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
     if (plan === "Free Starter" || !plan) {
       db.users[userIndex].isPremium = false;
       db.users[userIndex].plan = "Free Starter";
     } else {
       db.users[userIndex].isPremium = true;
-      db.users[userIndex].plan = plan;
-      if (paymentDetails?.lastFour) {
-        db.users[userIndex].lastPaymentLastFour = paymentDetails.lastFour;
-      }
+      db.users[userIndex].plan = plan; // e.g., "Premium Pro" or "Enterprise Advocate"
     }
 
     saveDb(db);
 
     const { password: _, ...updatedUser } = db.users[userIndex];
-    return res.status(200).json({
+    res.json({
       success: true,
       message: `Successfully updated plan to ${plan}`,
-      user: updatedUser,
+      user: updatedUser
     });
   } catch (error: any) {
-    return res.status(500).json({ error: "Failed to upgrade subscription tier." });
+    res.status(500).json({ error: "Failed to upgrade subscription tier." });
   }
 });
 
@@ -266,7 +251,7 @@ app.post("/api/documents", authenticateUser, (req: any, res) => {
       category,
       opponentName: opponentName || "Opponent",
       result,
-      letterContent,
+      letterContent
     };
 
     db.documents.push(newDoc);
@@ -301,24 +286,20 @@ app.delete("/api/documents/:id", authenticateUser, (req: any, res) => {
 // API endpoint to analyze audio or text conversations for legal rights
 app.post("/api/analyze", async (req, res) => {
   try {
-    const { text, audio, category, language } = req.body || {};
+    const { text, audio, category, language } = req.body;
 
     if (!text && !audio) {
-      return res.status(400).json({ error: "Please provide either conversation text or recorded audio." });
+      res.status(400).json({ error: "Please provide either conversation text or recorded audio." });
+      return;
     }
 
-    let ai;
-    try {
-      ai = getGeminiClient();
-    } catch (keyErr: any) {
-      console.error("Gemini initialization failed:", keyErr.message);
-      return res.status(500).json({ error: keyErr.message || "Gemini API key is not configured on server." });
-    }
+    const ai = getGeminiClient();
 
     let contents: any[] = [];
     let promptText = "";
 
     if (audio && audio.data && audio.mimeType) {
+      // Gemini natively accepts audio files for multimodal reasoning and transcription!
       contents.push({
         inlineData: {
           mimeType: audio.mimeType,
@@ -338,10 +319,11 @@ ${text}
       en: "English",
       es: "Spanish (Español)",
       zh: "Chinese (中文)",
-      vi: "Vietnamese (Tiếng Việt)",
+      vi: "Vietnamese (Tiếng Việt)"
     };
     const targetLanguage = languageNames[language] || "English";
 
+    // Append standard context and instructions
     promptText += `
 Context Category (optional instruction, prioritize finding rights issues in this field): ${category || "General / Miscellaneous"}
 
@@ -364,14 +346,14 @@ This includes:
 - 'replies' (both 'text' and 'rationale' for 'firm', 'legal', and 'polite' must be fully translated into ${targetLanguage})
 The 'transcript' field should be represented in ${targetLanguage} if translated, or if the original input was in another language, translate it to ${targetLanguage} so the user can easily read it.
 
-Ensure you respond in valid JSON format matching the requested schema.`;
+Ensure you respond in valid JSON format matching the requested schema. Do not include markdown wraps around the JSON inside the response (or if you do, ensure it parses as standard JSON).`;
 
     contents.push({ text: promptText });
 
     const systemInstruction = `You are AI Pocket Advocate, an expert legal rights guide. You help everyday tenants, employees, insurance policyholders, and customers level the playing field against landlords, bosses, or agents during negotiations. Identify pressure tactics, shady clauses, or rights violations, and provide reply templates (firm, legal, and polite). Always include a supportive, protective vibe and a brief educational disclaimer. You MUST output all response text in ${targetLanguage} when requested.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.5-flash",
       contents,
       config: {
         systemInstruction,
@@ -412,10 +394,10 @@ Ensure you respond in valid JSON format matching the requested schema.`;
                   legalReference: {
                     type: Type.STRING,
                     description: "General legal principle, standard tenant/employee/consumer protection laws, or acts (e.g. security deposit timelines, overtime laws, bad faith claims) to reference.",
-                  },
+                  }
                 },
-                required: ["term", "explanation", "legalReference"],
-              },
+                required: ["term", "explanation", "legalReference"]
+              }
             },
             replies: {
               type: Type.OBJECT,
@@ -424,46 +406,46 @@ Ensure you respond in valid JSON format matching the requested schema.`;
                   type: Type.OBJECT,
                   properties: {
                     text: { type: Type.STRING, description: "Assertive, clear, and direct reply that sets boundaries immediately." },
-                    rationale: { type: Type.STRING, description: "Why/when to use this assertive reply." },
+                    rationale: { type: Type.STRING, description: "Why/when to use this assertive reply." }
                   },
-                  required: ["text", "rationale"],
+                  required: ["text", "rationale"]
                 },
                 legal: {
                   type: Type.OBJECT,
                   properties: {
                     text: { type: Type.STRING, description: "A highly informed reply that professionally references standard legal protections or rights." },
-                    rationale: { type: Type.STRING, description: "When to use this legal reference reply (e.g., if they push back or persist)." },
+                    rationale: { type: Type.STRING, description: "When to use this legal reference reply (e.g., if they push back or persist)." }
                   },
-                  required: ["text", "rationale"],
+                  required: ["text", "rationale"]
                 },
                 polite: {
                   type: Type.OBJECT,
                   properties: {
                     text: { type: Type.STRING, description: "A collaborative, cooperative, yet protective reply to de-escalate tension." },
-                    rationale: { type: Type.STRING, description: "When to use this de-escalation reply." },
+                    rationale: { type: Type.STRING, description: "When to use this de-escalation reply." }
                   },
-                  required: ["text", "rationale"],
-                },
+                  required: ["text", "rationale"]
+                }
               },
-              required: ["firm", "legal", "polite"],
-            },
+              required: ["firm", "legal", "polite"]
+            }
           },
-          required: ["transcript", "negotiationType", "riskLevel", "summary", "violations", "replies"],
+          required: ["transcript", "negotiationType", "riskLevel", "summary", "violations", "replies"]
         },
       },
     });
 
     const responseText = response.text;
     if (!responseText) {
-      return res.status(500).json({ error: "No response generated from AI model." });
+      throw new Error("No response generated from Gemini.");
     }
 
     const data = JSON.parse(responseText.trim());
-    return res.json(data);
+    res.json(data);
   } catch (error: any) {
     console.error("Analysis error:", error);
-    return res.status(500).json({
-      error: error.message || "Failed to analyze conversation. Please make sure your Gemini API key is configured correctly.",
+    res.status(500).json({
+      error: error.message || "Failed to analyze conversation. Please make sure your Gemini API key is configured correctly."
     });
   }
 });
@@ -471,26 +453,19 @@ Ensure you respond in valid JSON format matching the requested schema.`;
 // AI-Powered Legal FAQ Chatbot Endpoint
 app.post("/api/faq-chat", async (req, res) => {
   try {
-    const { question, category, language } = req.body || {};
+    const { question, category, language } = req.body;
     if (!question) {
       return res.status(400).json({ error: "Please enter a question." });
     }
 
-    let ai;
-    try {
-      ai = getGeminiClient();
-    } catch (keyErr: any) {
-      console.error("Gemini initialization failed:", keyErr.message);
-      return res.status(500).json({ error: keyErr.message || "Gemini API key is missing on backend server." });
-    }
-
+    const ai = getGeminiClient();
     const resolvedCategory = category || "general";
 
     const languageNames: Record<string, string> = {
       en: "English",
       es: "Spanish (Español)",
       zh: "Chinese (中文)",
-      vi: "Vietnamese (Tiếng Việt)",
+      vi: "Vietnamese (Tiếng Việt)"
     };
     const targetLanguage = languageNames[language] || "English";
 
@@ -506,24 +481,48 @@ The user's preferred language is ${targetLanguage}. You MUST write the ENTIRE re
 Remember: Include a standard educational disclaimer that this is for educational purposes and not a substitute for formal attorney counsel. Keep answers concise, direct, and empathetic. Do not use markdown headers that are too deep.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.5-flash",
       contents: [
-        { role: "user", parts: [{ text: `Category: ${resolvedCategory}\nQuestion: ${question}` }] },
+        { role: "user", parts: [{ text: `Category: ${resolvedCategory}\nQuestion: ${question}` }] }
       ],
       config: {
         systemInstruction: systemPrompt,
-        temperature: 0.2,
-      },
+        temperature: 0.2
+      }
     });
 
     const answer = response.text || "No response received from AI model.";
-    return res.json({ answer });
+    res.json({ answer });
   } catch (error: any) {
-    return res.status(500).json({ error: error.message || "Failed to generate AI response." });
+    res.status(500).json({ error: error.message || "Failed to generate AI response." });
   }
 });
 
-// Standalone API Execution Server
-app.listen(Number(PORT), "0.0.0.0", () => {
-  console.log(`AI Pocket Advocate API backend running on port ${PORT}`);
+async function main() {
+  if (process.env.NODE_ENV !== "production") {
+    // Vite dev server middleware integration
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
+    });
+    app.use(vite.middlewares);
+    console.log("Vite development middleware loaded.");
+  } else {
+    // In production, serve the built static front-end assets
+    const distPath = path.join(process.cwd(), "dist");
+    app.use(express.static(distPath));
+    app.get("*", (req, res) => {
+      res.sendFile(path.join(distPath, "index.html"));
+    });
+    console.log("Production static files server configured.");
+  }
+
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`AI Pocket Advocate server running on port ${PORT}`);
+  });
+}
+
+main().catch((err) => {
+  console.error("Server startup error:", err);
+  process.exit(1);
 });
