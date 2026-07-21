@@ -6,27 +6,32 @@ const API_BASE_URL =
     : "https://pocket-advocate-backend.onrender.com";
 
 interface UpgradeModalProps {
+  isOpen?: boolean;
   planName?: string;
   billingCycle?: "monthly" | "lifetime";
   cardName?: string;
   cardNumber?: string;
-  authToken: string;
-  onUpgradeSuccess: (user: any) => void;
+  authToken?: string | null;
+  onUpgradeSuccess?: (user: any) => void;
   onClose: () => void;
 }
 
 export const UpgradeModal: React.FC<UpgradeModalProps> = ({
+  isOpen = false,
   planName = "Pro",
   billingCycle = "monthly",
   cardName = "",
   cardNumber = "",
-  authToken,
-  onUpgradeSuccess,
+  authToken = "",
+  onUpgradeSuccess = () => {},
   onClose,
 }) => {
   const [loading, setLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [step, setStep] = useState<"form" | "success">("form");
+
+  // Do not render anything if the modal state is false
+  if (!isOpen) return null;
 
   const handleUpgrade = async () => {
     setLoading(true);
@@ -41,7 +46,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${authToken}`,
+          Authorization: `Bearer ${authToken || ""}`,
         },
         body: JSON.stringify({
           plan: `${planName} (${billingCycle === "lifetime" ? "Lifetime" : "Monthly"})`,
@@ -100,7 +105,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
                 type="button"
                 onClick={onClose}
                 disabled={loading}
-                className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50 dark:text-slate-300 dark:hover:bg-slate-800"
+                className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50 dark:text-slate-300 dark:hover:bg-slate-800 cursor-pointer"
               >
                 Cancel
               </button>
@@ -108,7 +113,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
                 type="button"
                 onClick={handleUpgrade}
                 disabled={loading}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600"
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600 cursor-pointer"
               >
                 {loading ? "Processing..." : "Confirm & Pay"}
               </button>
@@ -125,7 +130,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="w-full rounded-lg bg-emerald-600 py-2 text-sm font-medium text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600"
+              className="w-full rounded-lg bg-emerald-600 py-2 text-sm font-medium text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600 cursor-pointer"
             >
               Done
             </button>
