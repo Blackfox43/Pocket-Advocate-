@@ -2,24 +2,20 @@ import { useState, useEffect } from "react";
 import { 
   Shield, 
   Scale, 
-  MessageSquareText, 
   AlertCircle, 
   Sparkles, 
   Plus, 
   Lock, 
   ArrowRight,
-  Landmark,
-  UserCheck,
-  Bookmark,
   ClipboardCheck,
-  MessageSquareCode,
   BookOpen,
   FileCheck2,
   Mic,
   Stamp,
   Gavel,
   MessageSquare,
-  Info
+  Info,
+  Bookmark
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -81,7 +77,6 @@ export default function App() {
       if (stored) {
         const parsed = JSON.parse(stored);
         setSessions(parsed);
-        // Load the most recent session by default if available
         if (parsed.length > 0) {
           setActiveResult(parsed[0].result);
           setOpponentName(parsed[0].opponentName);
@@ -203,7 +198,6 @@ export default function App() {
     setTextInput(doc.result.transcript);
   };
 
-  // Save history to localStorage on change
   const saveSessions = (updated: SavedSession[]) => {
     setSessions(updated);
     try {
@@ -213,19 +207,15 @@ export default function App() {
     }
   };
 
-  // Select a preset to test immediately
   const handleSelectPreset = (preset: PresetScenario) => {
     setSelectedPresetId(preset.id);
     setTextInput(preset.text);
     setOpponentName(preset.opponentName);
     setCategory(preset.category);
     setActiveInputTab("text");
-    
-    // Automatically trigger analysis for seamless demo interaction!
     handleAnalyze(preset.text, preset.opponentName, preset.category, preset.id);
   };
 
-  // Perform Gemini full-stack rights analysis
   const handleAnalyze = async (
     inputText: string, 
     oppName: string, 
@@ -257,7 +247,6 @@ export default function App() {
 
       const result: AnalysisResult = await response.json();
       
-      // Save session in local history
       const newSession: SavedSession = {
         id: crypto.randomUUID(),
         timestamp: new Date().toISOString(),
@@ -277,12 +266,11 @@ export default function App() {
     } catch (err: any) {
       console.error("Analysis Error:", err);
       setError(err.message || "Something went wrong while consulting the AI Advocate.");
-    } finally {
+    } font-mono finally {
       setIsProcessing(false);
     }
   };
 
-  // Handle recorded audio ready payload
   const handleAudioReady = async (base64Data: string, mimeType: string) => {
     setIsProcessing(true);
     setError(null);
@@ -324,8 +312,6 @@ export default function App() {
       saveSessions(updatedSessions);
       setActiveResult(result);
       setCurrentSessionId(newSession.id);
-      
-      // Synchronize text input display with transcribed result for confirmation
       setTextInput(result.transcript);
 
     } catch (err: any) {
@@ -336,7 +322,6 @@ export default function App() {
     }
   };
 
-  // Restore/view historical session
   const handleSelectSession = (session: SavedSession) => {
     setActiveResult(session.result);
     setOpponentName(session.opponentName);
@@ -346,7 +331,6 @@ export default function App() {
     setSelectedPresetId(undefined);
   };
 
-  // Delete historical session
   const handleDeleteSession = (id: string) => {
     const updated = sessions.filter((s) => s.id !== id);
     saveSessions(updated);
@@ -363,7 +347,6 @@ export default function App() {
     }
   };
 
-  // Clear all sessions
   const handleClearAll = () => {
     if (window.confirm("Are you sure you want to permanently clear all saved advocate consultations?")) {
       saveSessions([]);
@@ -374,7 +357,6 @@ export default function App() {
     }
   };
 
-  // Start fresh consultation
   const handleStartFresh = () => {
     setActiveResult(null);
     setCurrentSessionId(null);
@@ -385,7 +367,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-indigo-500/30 selection:text-white">
-      {/* Premium Header Component */}
       <Header 
         currentUser={currentUser} 
         onOpenAuth={() => setIsAuthOpen(true)} 
@@ -396,7 +377,6 @@ export default function App() {
         onLanguageChange={setLanguage}
       />
 
-      {/* Top-level Sub-navigation Tab bar */}
       <div className="bg-slate-900/40 border-b border-slate-900 sticky top-0 z-30 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4 overflow-x-auto scrollbar-none">
           <div className="flex items-center gap-1.5 shrink-0">
@@ -507,7 +487,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* Main Container */}
       <AnimatePresence mode="wait">
         {activeView === "howitworks" && (
           <motion.main 
@@ -531,11 +510,8 @@ export default function App() {
             transition={{ duration: 0.2 }}
             className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start"
           >
-            {/* Left Column: Input Channels (Mic, Copier) & Presets */}
             <section className="lg:col-span-5 space-y-6">
               <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/20 backdrop-blur-sm shadow-xl space-y-5">
-                
-                {/* Input toggle tabs */}
                 <div className="flex items-center justify-between border-b border-slate-800 pb-3 gap-2 flex-wrap sm:flex-nowrap">
                   <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800/80 w-full sm:w-auto">
                     <button
@@ -585,7 +561,6 @@ export default function App() {
                   )}
                 </div>
 
-                {/* Context Inputs: Category Selector & Opponent Name */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-[10px] font-mono font-bold uppercase text-slate-400 mb-1.5">
@@ -617,10 +592,8 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Channel Display */}
                 <div className="space-y-4">
                   {activeInputTab === "intake" ? (
-                    /* 0. Guided Intake Wizard Channel */
                     <IntakeWizard 
                       category={category} 
                       onApplyIntakeText={(text) => {
@@ -629,20 +602,18 @@ export default function App() {
                       }} 
                     />
                   ) : activeInputTab === "voice" ? (
-                    /* 1. Voice Record Channel */
                     <AudioRecorder 
                       onAudioReady={handleAudioReady} 
                       isProcessing={isProcessing} 
                     />
                   ) : (
-                    /* 2. Manual Text Copier Console */
                     <div className="space-y-3">
                       <div>
                         <label className="block text-[10px] font-mono font-bold uppercase text-slate-400 mb-1.5">
                           Copied Conversation / Verbal Statement
                         </label>
                         <textarea
-                          placeholder="Paste verbal demands, phone summaries, or letters here to extract your legal rights and whispers reply templates..."
+                          placeholder="Paste verbal demands, phone summaries, or letters here to extract your legal rights and whisper reply templates..."
                           rows={5}
                           value={textInput}
                           onChange={(e) => setTextInput(e.target.value)}
@@ -672,7 +643,6 @@ export default function App() {
                   )}
                 </div>
 
-                {/* Error Banner */}
                 {error && (
                   <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 flex items-start gap-2.5 text-xs text-red-400">
                     <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -681,7 +651,6 @@ export default function App() {
                 )}
               </div>
 
-              {/* Interactive AI FAQ Chatbot Companion (Small inline card) */}
               <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/10 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -706,7 +675,6 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Interactive Preset Simulator Playground (Small inline card) */}
               <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/10 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -732,11 +700,9 @@ export default function App() {
               </div>
             </section>
 
-            {/* Right Column: Active Advocate report & Secure Local History */}
             <section className="lg:col-span-7 space-y-6">
               <AnimatePresence mode="wait">
                 {activeResult ? (
-                  /* Active Advocate Consultation Report */
                   <motion.div
                     key="active-result"
                     initial={{ opacity: 0, y: 10 }}
@@ -757,114 +723,74 @@ export default function App() {
                       
                       {currentUser ? (
                         <button
-                          onClick={() => handleSaveDocumentToProfile(`Consultation with ${opponentName || "Opposing Party"} (${new Date().toLocaleDateString()})`)}
-                          className="flex items-center gap-1.5 text-[11px] bg-indigo-600 hover:bg-indigo-500 px-3 py-1.5 rounded-lg text-white font-semibold transition cursor-pointer"
+                          onClick={() => handleSaveDocumentToProfile(`Consultation with ${opponentName || "Opposing Party"}`)}
+                          className="px-3 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
                         >
                           <Bookmark className="w-3.5 h-3.5" />
-                          {t.saveToProfile}
+                          Save to Profile
                         </button>
                       ) : (
                         <button
                           onClick={() => setIsAuthOpen(true)}
-                          className="flex items-center gap-1.5 text-[11px] bg-slate-900 border border-slate-800 hover:bg-slate-850 px-3 py-1.5 rounded-lg text-slate-300 font-semibold transition cursor-pointer"
+                          className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
                         >
-                          <Lock className="w-3 h-3 text-slate-500" />
-                          {t.signInToSave}
+                          <Lock className="w-3.5 h-3.5 text-amber-400" />
+                          Sign In to Save
                         </button>
                       )}
                     </div>
 
-                    <AnalysisDisplay 
-                      result={activeResult} 
-                      opponentName={opponentName || "Opposing Party"} 
-                      currentUser={currentUser}
-                      language={language}
-                      onSaveLetter={(letterText) => handleSaveDocumentToProfile(`Notice to ${opponentName || "Opposing Party"} (${new Date().toLocaleDateString()})`, letterText)}
-                      onPreviewLetter={(letterText) => {
-                        if (!currentUser || !currentUser.isPremium) {
-                          setPreviewLetterText(letterText);
-                          setIsUpgradeOpen(true);
-                        } else {
-                          setPreviewLetterText(letterText);
-                          setIsPreviewOpen(true);
-                        }
+                    <AnalysisDisplay
+                      result={activeResult}
+                      opponentName={opponentName}
+                      category={category}
+                      onOpenPreview={(text) => {
+                        setPreviewLetterText(text);
+                        setIsPreviewOpen(true);
                       }}
+                    />
+
+                    <SessionHistory
+                      sessions={sessions}
+                      currentSessionId={currentSessionId}
+                      onSelectSession={handleSelectSession}
+                      onDeleteSession={handleDeleteSession}
+                      onClearAll={handleClearAll}
                     />
                   </motion.div>
                 ) : (
-                  /* Idle/Placeholder screen explaining features beautifully */
-                  <motion.div
-                    key="idle-placeholder"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="p-8 rounded-2xl border border-slate-800/80 bg-slate-900/10 backdrop-blur-sm text-center max-w-xl mx-auto py-12 space-y-6"
-                  >
-                    <div className="mx-auto w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-indigo-600/10 flex items-center justify-center text-indigo-400 border border-indigo-500/20 shadow-xl shadow-indigo-950/20">
-                      <Shield className="w-7 h-7" />
+                  <div className="p-8 rounded-2xl border border-slate-800/80 bg-slate-900/20 text-center space-y-4">
+                    <div className="p-3 bg-indigo-500/10 rounded-full w-fit mx-auto border border-indigo-500/20 text-indigo-400">
+                      <Shield className="w-8 h-8" />
                     </div>
-
-                    <div>
-                      <h3 className="font-sans font-bold text-lg text-white">
-                        {t.idleTitle}
-                      </h3>
-                      <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto leading-relaxed">
-                        {t.idleSubtitle}
+                    <div className="space-y-1">
+                      <h3 className="text-base font-bold text-white">No Active Consultation</h3>
+                      <p className="text-xs text-slate-400 max-w-md mx-auto">
+                        Record a verbal statement, paste a conversation, or select a scenario preset to generate an instant legal breakdown and strategy.
                       </p>
                     </div>
+                    <button
+                      onClick={() => setActiveView("playground")}
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition shadow-lg shadow-indigo-600/20 cursor-pointer inline-flex items-center gap-2"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      Explore Pre-configured Scenarios
+                    </button>
 
-                    <div className="grid grid-cols-1 gap-3 text-xs text-slate-300 max-w-md mx-auto text-left pl-4">
-                      <div className="flex items-start gap-3">
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-500/10 text-indigo-400 text-[10px] font-bold font-mono">
-                          1
-                        </span>
-                        <p className="leading-relaxed">
-                          {t.idleStep1}
-                        </p>
+                    {sessions.length > 0 && (
+                      <div className="pt-6 border-t border-slate-900 text-left">
+                        <SessionHistory
+                          sessions={sessions}
+                          currentSessionId={currentSessionId}
+                          onSelectSession={handleSelectSession}
+                          onDeleteSession={handleDeleteSession}
+                          onClearAll={handleClearAll}
+                        />
                       </div>
-                      
-                      <div className="flex items-start gap-3">
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-bold font-mono">
-                          2
-                        </span>
-                        <p className="leading-relaxed">
-                          {t.idleStep2}
-                        </p>
-                      </div>
-
-                      <div className="flex items-start gap-3">
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-purple-500/10 text-purple-400 text-[10px] font-bold font-mono">
-                          3
-                        </span>
-                        <p className="leading-relaxed">
-                          {t.idleStep3}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="pt-4 border-t border-slate-900 flex items-center justify-center gap-4 text-[11px] text-slate-500 font-mono">
-                      <span className="flex items-center gap-1">
-                        <Landmark className="w-3.5 h-3.5" />
-                        {t.standardActs}
-                      </span>
-                      <span>•</span>
-                      <span className="flex items-center gap-1">
-                        <UserCheck className="w-3.5 h-3.5" />
-                        {t.civicProtection}
-                      </span>
-                    </div>
-                  </motion.div>
+                    )}
+                  </div>
                 )}
               </AnimatePresence>
-
-              {/* Consultation History Dashboard */}
-              <SessionHistory
-                sessions={sessions}
-                onSelectSession={handleSelectSession}
-                onDeleteSession={handleDeleteSession}
-                onClearAll={handleClearAll}
-                currentSessionId={currentSessionId || undefined}
-              />
             </section>
           </motion.main>
         )}
@@ -876,24 +802,12 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
             transition={{ duration: 0.2 }}
-            className="flex-1 max-w-5xl w-full mx-auto p-4 md:p-6 lg:p-8 space-y-6"
+            className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 lg:p-8"
           >
-            <div className="text-center max-w-xl mx-auto space-y-2 mb-4">
-              <div className="mx-auto w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-                <FileCheck2 className="w-6 h-6" />
-              </div>
-              <h3 className="text-lg font-bold text-white">Dispute Scenario Playground</h3>
-              <p className="text-xs text-slate-400">
-                Explore tenant, employee, and insurance policyholder protection tactics. Select a scenario blueprint and click to load it instantly into your Counseling workspace to run analysis.
-              </p>
-            </div>
-            
             <ScenarioSelector 
-              onSelect={(presetId) => {
-                handleSelectPreset(presetId);
-                setActiveView("counseling");
-              }} 
-              selectedId={selectedPresetId} 
+              presets={PRESET_SCENARIOS} 
+              onSelectPreset={handleSelectPreset} 
+              selectedPresetId={selectedPresetId} 
             />
           </motion.main>
         )}
@@ -905,21 +819,9 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
             transition={{ duration: 0.2 }}
-            className="flex-1 max-w-4xl w-full mx-auto p-4 md:p-6 lg:p-8 space-y-6"
+            className="flex-1 max-w-5xl w-full mx-auto p-4 md:p-6 lg:p-8"
           >
-            <div className="text-center max-w-xl mx-auto space-y-2 mb-4">
-              <div className="mx-auto w-12 h-12 rounded-xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400">
-                <MessageSquare className="w-6 h-6" />
-              </div>
-              <h3 className="text-lg font-bold text-white">Legal Companion FAQ Desk</h3>
-              <p className="text-xs text-slate-400">
-                Ask general regulatory questions about tenancy laws, Fair Labor Standards Act provisions, or insurance bad-faith protocols.
-              </p>
-            </div>
-            
-            <div className="bg-slate-900/20 border border-slate-800 rounded-3xl p-6">
-              <FAQChat category={category} />
-            </div>
+            <FAQChat language={language} />
           </motion.main>
         )}
 
@@ -930,19 +832,9 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
             transition={{ duration: 0.2 }}
-            className="flex-1 max-w-5xl w-full mx-auto p-4 md:p-6 lg:p-8 space-y-6"
+            className="flex-1 max-w-6xl w-full mx-auto p-4 md:p-6 lg:p-8"
           >
-            <div className="text-center max-w-xl mx-auto space-y-2 mb-4">
-              <div className="mx-auto w-12 h-12 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400">
-                <BookOpen className="w-6 h-6" />
-              </div>
-              <h3 className="text-lg font-bold text-white">Interactive Rights & Codes Library</h3>
-              <p className="text-xs text-slate-400">
-                Search federal regulations, state statutes, and standard civil defense frameworks directly.
-              </p>
-            </div>
-            
-            <RightsLibrary />
+            <RightsLibrary category={category} />
           </motion.main>
         )}
 
@@ -953,70 +845,14 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
             transition={{ duration: 0.2 }}
-            className="flex-1 max-w-4xl w-full mx-auto p-4 md:p-6 lg:p-8 space-y-6"
+            className="flex-1 max-w-5xl w-full mx-auto p-4 md:p-6 lg:p-8"
           >
-            <div className="text-center max-w-xl mx-auto space-y-2 mb-6">
-              <div className="mx-auto w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
-                <Mic className="w-6 h-6" />
-              </div>
-              <h3 className="text-lg font-bold text-white">Speech Rehearsal Studio</h3>
-              <p className="text-xs text-slate-400">
-                Speak clearly, test your pitch dynamics, and practice delivering assertive verbal templates correctly.
-              </p>
-            </div>
-
-            <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/20 backdrop-blur-sm space-y-4">
-              <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider font-mono">1. Prepare Your Script</h4>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-mono text-slate-400 uppercase mb-1.5">Preset Template Tones</label>
-                  <select
-                    value={rehearsalTone}
-                    onChange={(e) => {
-                      setRehearsalTone(e.target.value);
-                      if (activeResult) {
-                        setRehearsalScript(activeResult.replies[e.target.value as "firm" | "legal" | "polite"]?.text || "");
-                      }
-                    }}
-                    className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500/80 focus:ring-1 focus:ring-indigo-500/80 rounded-xl px-3.5 py-2 text-xs font-medium text-slate-200 outline-none transition"
-                  >
-                    <option value="firm">Firm & Boundary-focused</option>
-                    <option value="legal">Legal & Statute-focused</option>
-                    <option value="polite">Polite & De-escalating</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-mono text-slate-400 uppercase mb-1.5">Load Script From</label>
-                  <button
-                    onClick={() => {
-                      if (activeResult) {
-                        setRehearsalScript(activeResult.replies[rehearsalTone as "firm" | "legal" | "polite"]?.text || "");
-                      } else {
-                        setRehearsalScript("Under state housing codes, landlord entry requires 24 hours written notice. Please provide a formal request in writing before attempting to schedule an inspection.");
-                      }
-                    }}
-                    className="w-full bg-slate-950 hover:bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 text-xs py-2.5 rounded-xl transition font-semibold cursor-pointer"
-                  >
-                    {activeResult ? "⚡ Load Active Consult Replies" : "✍️ Load Practice Lease Template"}
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-mono text-slate-400 uppercase mb-1.5">Script Text (Edit to customize)</label>
-                <textarea
-                  rows={4}
-                  value={rehearsalScript}
-                  onChange={(e) => setRehearsalScript(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl p-3 text-xs text-slate-200 outline-none resize-none font-sans leading-relaxed"
-                  placeholder="Enter custom response text to practice speaking..."
-                />
-              </div>
-            </div>
-
-            <RehearsalCoach selectedReplyText={rehearsalScript} tone={rehearsalTone} />
+            <RehearsalCoach 
+              script={rehearsalScript} 
+              tone={rehearsalTone} 
+              setScript={setRehearsalScript} 
+              setTone={setRehearsalTone} 
+            />
           </motion.main>
         )}
 
@@ -1027,17 +863,11 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
             transition={{ duration: 0.2 }}
-            className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 lg:p-8"
+            className="flex-1 max-w-6xl w-full mx-auto p-4 md:p-6 lg:p-8"
           >
-            <CertifiedLetterheadStudio
-              currentUser={currentUser}
-              authToken={authToken}
-              savedDocuments={savedDocuments}
-              onOpenUpgrade={() => setIsUpgradeOpen(true)}
-              onPreviewLetter={(text) => {
-                setPreviewLetterText(text);
-                setIsPreviewOpen(true);
-              }}
+            <CertifiedLetterheadStudio 
+              currentUser={currentUser} 
+              onOpenUpgrade={() => setIsUpgradeOpen(true)} 
             />
           </motion.main>
         )}
@@ -1049,65 +879,41 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
             transition={{ duration: 0.2 }}
-            className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 lg:p-8"
+            className="flex-1 max-w-6xl w-full mx-auto p-4 md:p-6 lg:p-8"
           >
-            <MockCourtSimulator
-              currentUser={currentUser}
-              authToken={authToken}
-              onOpenUpgrade={() => setIsUpgradeOpen(true)}
+            <MockCourtSimulator 
+              currentUser={currentUser} 
+              onOpenUpgrade={() => setIsUpgradeOpen(true)} 
             />
           </motion.main>
         )}
       </AnimatePresence>
 
-      {/* Slide-out User Profile & Dashboard Drawer */}
+      <FormalPrintPreview
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        letterText={previewLetterText}
+        opponentName={opponentName}
+      />
+
       <AuthProfile
+        isOpen={isAuthOpen}
+        onClose={() => setIsAuthOpen(false)}
         currentUser={currentUser}
         authToken={authToken}
         savedDocuments={savedDocuments}
-        savedSessions={sessions}
         onLoginSuccess={handleLoginSuccess}
         onLogout={handleLogout}
         onUpdateProfileSuccess={handleUpdateProfileSuccess}
         onLoadSavedDocument={handleLoadSavedDocument}
-        onDeleteDocument={handleDeleteSavedDocument}
-        isOpen={isAuthOpen}
-        onClose={() => setIsAuthOpen(false)}
-        onOpenUpgrade={() => setIsUpgradeOpen(true)}
+        onDeleteSavedDocument={handleDeleteSavedDocument}
       />
 
-      {/* Premium Printable Notice Letterhead Preview Modal */}
-      <FormalPrintPreview
-        isOpen={isPreviewOpen}
-        onClose={() => setIsPreviewOpen(false)}
-        letterContent={previewLetterText}
-        opponentName={opponentName}
-      />
-
-      {/* Interactive Monetization Upgrade Modal */}
       <UpgradeModal
         isOpen={isUpgradeOpen}
         onClose={() => setIsUpgradeOpen(false)}
         currentUser={currentUser}
-        authToken={authToken}
-        onUpgradeSuccess={(updatedUser) => {
-          setCurrentUser(updatedUser);
-          localStorage.setItem("pocket_advocate_user", JSON.stringify(updatedUser));
-        }}
-        onOpenAuth={() => setIsAuthOpen(true)}
       />
-
-      {/* Footer legal guidelines & safety indicator */}
-      <footer className="border-t border-slate-900 py-4 px-6 mt-12 bg-slate-950/40 text-center text-[10px] text-slate-600">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>
-            © 2026 AI Pocket Advocate. Defending everyday civilians from predatory legal terms.
-          </span>
-          <span className="font-mono text-[9px] text-slate-500/80 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
-            EDUCATIONAL GUIDANCE PLATFORM • NOT OFFICIAL ATTORNEY COUNSEL
-          </span>
-        </div>
-      </footer>
     </div>
   );
 }
