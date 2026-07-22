@@ -34,6 +34,44 @@ function getGeminiClient(): GoogleGenAI {
   return aiClient;
 }
 
+const PRIMARY_MODEL = "gemini-3.6-flash";
+const FALLBACK_MODELS = ["gemini-3.1-flash-lite", "gemini-flash-latest"];
+
+async function generateWithRetryAndFallback(params: any): Promise<any> {
+  const ai = getGeminiClient();
+  const requestedModel = params.model || PRIMARY_MODEL;
+  const modelsToTry = [requestedModel, ...FALLBACK_MODELS.filter((m) => m !== requestedModel)];
+
+  let lastError: any = null;
+
+  for (const modelName of modelsToTry) {
+    const currentParams = { ...params, model: modelName };
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const response = await ai.models.generateContent(currentParams);
+        return response;
+      } catch (err: any) {
+        lastError = err;
+        const errStr = (err?.message || "") + " " + JSON.stringify(err);
+        const isTransient =
+          errStr.includes("503") ||
+          errStr.includes("UNAVAILABLE") ||
+          errStr.includes("high demand") ||
+          errStr.includes("429") ||
+          errStr.includes("RESOURCE_EXHAUSTED");
+
+        if (isTransient && attempt < 2) {
+          await new Promise((resolve) => setTimeout(resolve, (attempt + 1) * 1000));
+          continue;
+        }
+        break;
+      }
+    }
+  }
+
+  throw lastError;
+}
+
 // Health check route
 app.get("/api/health", (req, res) => {
   res.json({ status: "healthy", time: new Date().toISOString() });
@@ -352,8 +390,8 @@ Ensure you respond in valid JSON format matching the requested schema. Do not in
 
     const systemInstruction = `You are AI Pocket Advocate, an expert legal rights guide. You help everyday tenants, employees, insurance policyholders, and customers level the playing field against landlords, bosses, or agents during negotiations. Identify pressure tactics, shady clauses, or rights violations, and provide reply templates (firm, legal, and polite). Always include a supportive, protective vibe and a brief educational disclaimer. You MUST output all response text in ${targetLanguage} when requested.`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+    const response = await generateWithRetryAndFallback({
+      model: "gemini-3.6-flash",
       contents,
       config: {
         systemInstruction,
@@ -444,9 +482,14 @@ Ensure you respond in valid JSON format matching the requested schema. Do not in
     res.json(data);
   } catch (error: any) {
     console.error("Analysis error:", error);
-    res.status(500).json({
-      error: error.message || "Failed to analyze conversation. Please make sure your Gemini API key is configured correctly."
-    });
+    const errStr = (error?.message || "") + " " + JSON.stringify(error);
+    const isHighDemand = errStr.includes("503") || errStr.includes("UNAVAILABLE") || errStr.includes("high demand") || errStr.includes("429");
+    
+    const userError = isHighDemand
+      ? "The AI model service is currently experiencing high demand. Please try submitting your request again in a few moments."
+      : (error?.message || "Failed to analyze conversation. Please check your AI model configuration.");
+
+    res.status(isHighDemand ? 503 : 500).json({ error: userError });
   }
 });
 
@@ -458,7 +501,6 @@ app.post("/api/faq-chat", async (req, res) => {
       return res.status(400).json({ error: "Please enter a question." });
     }
 
-    const ai = getGeminiClient();
     const resolvedCategory = category || "general";
 
     const languageNames: Record<string, string> = {
@@ -480,8 +522,8 @@ The user's preferred language is ${targetLanguage}. You MUST write the ENTIRE re
 
 Remember: Include a standard educational disclaimer that this is for educational purposes and not a substitute for formal attorney counsel. Keep answers concise, direct, and empathetic. Do not use markdown headers that are too deep.`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+    const response = await generateWithRetryAndFallback({
+      model: "gemini-3.6-flash",
       contents: [
         { role: "user", parts: [{ text: `Category: ${resolvedCategory}\nQuestion: ${question}` }] }
       ],
@@ -494,7 +536,15 @@ Remember: Include a standard educational disclaimer that this is for educational
     const answer = response.text || "No response received from AI model.";
     res.json({ answer });
   } catch (error: any) {
-    res.status(500).json({ error: error.message || "Failed to generate AI response." });
+    console.error("FAQ Chat error:", error);
+    const errStr = (error?.message || "") + " " + JSON.stringify(error);
+    const isHighDemand = errStr.includes("503") || errStr.includes("UNAVAILABLE") || errStr.includes("high demand") || errStr.includes("429");
+    
+    const userError = isHighDemand
+      ? "The AI model service is currently experiencing high demand. Please try again in a moment."
+      : (error?.message || "Failed to generate AI response.");
+
+    res.status(isHighDemand ? 503 : 500).json({ error: userError });
   }
 });
 
